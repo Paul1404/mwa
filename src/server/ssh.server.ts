@@ -148,6 +148,30 @@ export async function* execStream(
   }
 }
 
+/**
+ * Run a single shell command and collect all output. Use this for short
+ * read-only commands (preflight checks, etc.). For long-running commands
+ * with live output, use `execStream` instead.
+ */
+export async function exec(
+  client: Client,
+  command: string,
+  signal?: AbortSignal,
+): Promise<{ stdout: string; stderr: string; exitCode: number | null }> {
+  let stdout = "";
+  let stderr = "";
+  let exitCode: number | null = null;
+  for await (const ev of execStream(client, command, signal)) {
+    if (ev.type === "line") {
+      if (ev.stream === "stdout") stdout += (stdout ? "\n" : "") + ev.line;
+      else stderr += (stderr ? "\n" : "") + ev.line;
+    } else {
+      exitCode = ev.code;
+    }
+  }
+  return { stdout, stderr, exitCode };
+}
+
 export type ConnectResult = {
   client: Client;
   /** The SHA-256 host fingerprint observed during the handshake. */

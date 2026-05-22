@@ -4,7 +4,9 @@ import * as v from "valibot";
 import { audit } from "../audit.server";
 import { encrypt, fingerprintKey } from "../crypto.server";
 import { db, schema } from "../db";
+import { runPreflight } from "../preflight.server";
 import { executeRun, type RunLogEvent, runBroadcaster, runLock } from "../runner.server";
+import { HostKeyMismatchError } from "../ssh.server";
 import type { OrpcContext } from "./context.server";
 
 const base = os.$context<OrpcContext>();
@@ -356,6 +358,46 @@ const activeRun = authed
     return { runId: id, credentialId: run.credentialId };
   });
 
+const PreflightCheckOut = v.object({
+  id: v.string(),
+  label: v.string(),
+  value: v.string(),
+  status: v.union([v.literal("ok"), v.literal("warn"), v.literal("fail"), v.literal("info")]),
+  detail: v.optional(v.string()),
+});
+
+const PreflightReportOut = v.object({
+  host: v.string(),
+  hostFingerprint: v.string(),
+  checks: v.array(PreflightCheckOut),
+  hasBlockers: v.boolean(),
+  hasWarnings: v.boolean(),
+});
+
+const preflightRun = authed
+  .input(CredentialIdInput)
+  .output(PreflightReportOut)
+  .handler(async ({ input }) => {
+    try {
+      const report = await runPreflight(input.id);
+      return {
+        host: report.host,
+        hostFingerprint: report.hostFingerprint,
+        checks: report.checks,
+        hasBlockers: report.checks.some((c) => c.status === "fail"),
+        hasWarnings: report.checks.some((c) => c.status === "warn"),
+      };
+    } catch (err) {
+      if (err instanceof HostKeyMismatchError) {
+        throw new ORPCError("FORBIDDEN", {
+          message: `host key mismatch: expected ${err.expected}, got ${err.actual}. Inspect the server and clear the pin if the change is legitimate.`,
+        });
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      throw new ORPCError("INTERNAL_SERVER_ERROR", { message });
+    }
+  });
+
 const triggerRun = authed
   .input(CredentialIdInput)
   .output(v.object({ runId: v.string() }))
@@ -578,6 +620,7 @@ export const appRouter = {
     list: listRuns,
     get: getRun,
     active: activeRun,
+    preflight: preflightRun,
     trigger: triggerRun,
     cancel: cancelRun,
     stream: streamRun,
