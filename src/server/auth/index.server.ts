@@ -9,11 +9,14 @@ const allowSignup = (process.env.ALLOW_SIGNUP ?? "true").toLowerCase() !== "fals
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: "pg",
+    // With `usePlural: true`, better-auth pluralizes its canonical model
+    // names ("user" -> "users") before looking them up here, so the keys
+    // below must match the plural form of each model.
     schema: {
-      user: schema.users,
-      session: schema.sessions,
-      account: schema.accounts,
-      verification: schema.verifications,
+      users: schema.users,
+      sessions: schema.sessions,
+      accounts: schema.accounts,
+      verifications: schema.verifications,
     },
     usePlural: true,
   }),
