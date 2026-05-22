@@ -53,7 +53,7 @@ export async function* execStream(
   }
 
   const stream: ClientChannel = await new Promise((res, rej) => {
-    client.exec(command, { pty: true }, (err, ch) => {
+    client.exec(command, (err, ch) => {
       if (err) rej(err);
       else res(ch);
     });

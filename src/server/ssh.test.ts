@@ -17,21 +17,19 @@ function makeClient(scripted: {
   channel.stderr = new EventEmitter();
   channel.close = () => {};
 
-  const exec = vi.fn(
-    (_cmd: string, _opts: unknown, cb: (err: Error | null, ch: typeof channel) => void) => {
-      cb(null, channel);
-      // schedule emissions on next tick so the iterator has time to wire up
-      setImmediate(() => {
-        for (const line of scripted.stdout ?? []) {
-          channel.emit("data", Buffer.from(line, "utf8"));
-        }
-        for (const line of scripted.stderr ?? []) {
-          channel.stderr.emit("data", Buffer.from(line, "utf8"));
-        }
-        channel.emit("close", scripted.exitCode ?? 0, scripted.signal ?? null);
-      });
-    },
-  );
+  const exec = vi.fn((_cmd: string, cb: (err: Error | null, ch: typeof channel) => void) => {
+    cb(null, channel);
+    // schedule emissions on next tick so the iterator has time to wire up
+    setImmediate(() => {
+      for (const line of scripted.stdout ?? []) {
+        channel.emit("data", Buffer.from(line, "utf8"));
+      }
+      for (const line of scripted.stderr ?? []) {
+        channel.stderr.emit("data", Buffer.from(line, "utf8"));
+      }
+      channel.emit("close", scripted.exitCode ?? 0, scripted.signal ?? null);
+    });
+  });
 
   return { exec } as unknown as import("ssh2").Client;
 }

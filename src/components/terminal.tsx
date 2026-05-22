@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import Anser from "anser";
+import { useEffect, useMemo, useRef } from "react";
 
 export type TerminalLine = {
   seq: number;
@@ -6,6 +7,38 @@ export type TerminalLine = {
   stream: string;
   line: string;
 };
+
+type Segment = {
+  content: string;
+  className: string;
+};
+
+function parseLine(line: string): Segment[] {
+  const chunks = Anser.ansiToJson(line, { use_classes: true, remove_empty: true });
+  return chunks.map((c) => {
+    const classes: string[] = [];
+    if (c.fg) classes.push(c.fg);
+    if (c.bg) classes.push(c.bg);
+    for (const d of c.decorations) classes.push(`ansi-${d}`);
+    return { content: c.content, className: classes.join(" ") };
+  });
+}
+
+function LineRow({ line }: { line: TerminalLine }) {
+  const segments = useMemo(() => parseLine(line.line), [line.line]);
+  return (
+    <div className="term-row" data-stream={line.stream}>
+      {segments.length === 0
+        ? " "
+        : segments.map((s, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: segments are derived from immutable line text
+            <span key={i} className={s.className || undefined}>
+              {s.content}
+            </span>
+          ))}
+    </div>
+  );
+}
 
 export function Terminal({
   lines,
@@ -29,11 +62,7 @@ export function Terminal({
       {lines.length === 0 ? (
         <div className="term-row text-[color:var(--color-muted)]">Waiting for output...</div>
       ) : (
-        lines.map((l) => (
-          <div key={l.seq} className="term-row" data-stream={l.stream}>
-            {l.line.length === 0 ? " " : l.line}
-          </div>
-        ))
+        lines.map((l) => <LineRow key={l.seq} line={l} />)
       )}
     </div>
   );
