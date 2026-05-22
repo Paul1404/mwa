@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { CircleCheck, CircleX, Loader2, Play, Plus, Server } from "lucide-react";
+import { CircleCheck, CircleX, KeyRound, Loader2, Play, Plus, Server } from "lucide-react";
 import { useState } from "react";
 import { PreflightPanel } from "~/components/preflight-panel";
 import { Button } from "~/components/ui/button";
@@ -128,16 +128,37 @@ function Dashboard() {
                           Edit
                         </Button>
                       </Link>
-                      <Button
-                        size="sm"
-                        onClick={() => setPlanningId(c.id)}
-                        disabled={!!active.data || planningId === c.id}
-                      >
-                        <Play className="size-3.5" /> Plan update
-                      </Button>
+                      {c.needsRekey ? (
+                        <Link
+                          to="/credentials/$id"
+                          params={{ id: c.id }}
+                          search={{ replaceKey: 1 }}
+                        >
+                          <Button size="sm">
+                            <KeyRound className="size-3.5" /> Replace key
+                          </Button>
+                        </Link>
+                      ) : (
+                        <Button
+                          size="sm"
+                          onClick={() => setPlanningId(c.id)}
+                          disabled={!!active.data || planningId === c.id}
+                        >
+                          <Play className="size-3.5" /> Plan update
+                        </Button>
+                      )}
                     </div>
                   </div>
-                  {planningId === c.id ? (
+                  {c.needsRekey ? (
+                    <div className="rounded-md border border-[color:var(--color-danger)]/50 bg-[color:var(--color-danger)]/10 p-3 text-xs flex items-start gap-2 text-[color:var(--color-danger)]">
+                      <KeyRound className="size-3.5 mt-0.5 shrink-0" />
+                      <span>
+                        Stored secret can&apos;t be decrypted with the current ENCRYPTION_KEY.
+                        Replace the key to recover this credential.
+                      </span>
+                    </div>
+                  ) : null}
+                  {planningId === c.id && !c.needsRekey ? (
                     <PreflightPanel
                       credentialId={c.id}
                       disabled={!!active.data}

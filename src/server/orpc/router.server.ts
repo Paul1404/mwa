@@ -2,7 +2,7 @@ import { eventIterator, ORPCError, os } from "@orpc/server";
 import { and, desc, eq } from "drizzle-orm";
 import * as v from "valibot";
 import { audit } from "../audit.server";
-import { encrypt, fingerprintKey } from "../crypto.server";
+import { CredentialDecryptError, encrypt, fingerprintKey, isDecryptable } from "../crypto.server";
 import { db, schema } from "../db";
 import { runPreflight } from "../preflight.server";
 import { executeRun, type RunLogEvent, runBroadcaster, runLock } from "../runner.server";
@@ -60,6 +60,7 @@ const CredentialSummary = v.object({
   username: v.string(),
   publicKeyFingerprint: v.nullable(v.string()),
   hostFingerprint: v.nullable(v.string()),
+  needsRekey: v.boolean(),
   createdAt: v.string(),
   updatedAt: v.string(),
 });
@@ -103,6 +104,10 @@ function serializeCredential(row: typeof schema.sshCredentials.$inferSelect) {
     username: row.username,
     publicKeyFingerprint: row.publicKeyFingerprint,
     hostFingerprint: row.hostFingerprint,
+    // The ciphertext is unreadable iff the active ENCRYPTION_KEY no longer
+    // matches the one used at write time. The UI uses this to nudge users to
+    // re-key without making them click "Plan update" first.
+    needsRekey: !isDecryptable(row.privateKeyEnc),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -388,6 +393,12 @@ const preflightRun = authed
         hasWarnings: report.checks.some((c) => c.status === "warn"),
       };
     } catch (err) {
+      if (err instanceof CredentialDecryptError) {
+        throw new ORPCError("PRECONDITION_FAILED", {
+          message: err.message,
+          data: { reason: "credential_unreadable", credentialId: input.id },
+        });
+      }
       if (err instanceof HostKeyMismatchError) {
         throw new ORPCError("FORBIDDEN", {
           message: `host key mismatch: expected ${err.expected}, got ${err.actual}. Inspect the server and clear the pin if the change is legitimate.`,
@@ -496,6 +507,15 @@ const triggerRun = authed
       where: eq(schema.sshCredentials.id, input.id),
     });
     if (!cred) throw new ORPCError("NOT_FOUND", { message: "credential not found" });
+
+    if (!isDecryptable(cred.privateKeyEnc)) {
+      throw new ORPCError("PRECONDITION_FAILED", {
+        message:
+          "stored secret can't be decrypted with the current ENCRYPTION_KEY. " +
+          "re-enter the private key to re-encrypt it with the active key.",
+        data: { reason: "credential_unreadable", credentialId: cred.id },
+      });
+    }
 
     const [run] = await db
       .insert(schema.updateRuns)

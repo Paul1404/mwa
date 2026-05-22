@@ -12,6 +12,24 @@ const ALGO = "aes-256-gcm" as const;
 const IV_LEN = 12;
 const KEY_LEN = 32;
 
+/**
+ * Thrown when an existing ciphertext can't be authenticated with the current
+ * `ENCRYPTION_KEY`. Almost always means the key was rotated or lost between
+ * encryption time and decryption time, so the only recovery is to re-enter
+ * the underlying secret (re-key).
+ */
+export class CredentialDecryptError extends Error {
+  readonly code = "CREDENTIAL_UNREADABLE" as const;
+  constructor(cause?: unknown) {
+    super(
+      "stored secret can't be decrypted with the current ENCRYPTION_KEY. " +
+        "re-enter the private key to re-encrypt it with the active key.",
+    );
+    this.name = "CredentialDecryptError";
+    if (cause !== undefined) (this as { cause?: unknown }).cause = cause;
+  }
+}
+
 function loadKey(): Buffer {
   const raw = process.env.ENCRYPTION_KEY;
   if (!raw) {
@@ -46,20 +64,39 @@ export function encrypt(plaintext: string): string {
   return `${iv.toString("base64")}:${tag.toString("base64")}:${enc.toString("base64")}`;
 }
 
-/** Decrypt the format produced by `encrypt`. Throws if the payload was tampered with. */
+/**
+ * Decrypt the format produced by `encrypt`. Throws `CredentialDecryptError`
+ * if the payload was tampered with or was encrypted under a different key.
+ */
 export function decrypt(payload: string): string {
   const parts = payload.split(":");
   if (parts.length !== 3) {
-    throw new Error("encrypted payload is malformed (expected iv:tag:cipher)");
+    throw new CredentialDecryptError(
+      new Error("encrypted payload is malformed (expected iv:tag:cipher)"),
+    );
   }
   const [ivB64, tagB64, cipherB64] = parts as [string, string, string];
   const iv = Buffer.from(ivB64, "base64");
   const tag = Buffer.from(tagB64, "base64");
   const enc = Buffer.from(cipherB64, "base64");
-  const decipher = createDecipheriv(ALGO, getKey(), iv) as DecipherGCM;
-  decipher.setAuthTag(tag);
-  const dec = Buffer.concat([decipher.update(enc), decipher.final()]);
-  return dec.toString("utf8");
+  try {
+    const decipher = createDecipheriv(ALGO, getKey(), iv) as DecipherGCM;
+    decipher.setAuthTag(tag);
+    const dec = Buffer.concat([decipher.update(enc), decipher.final()]);
+    return dec.toString("utf8");
+  } catch (err) {
+    throw new CredentialDecryptError(err);
+  }
+}
+
+/** True if the payload can be decrypted with the current ENCRYPTION_KEY. */
+export function isDecryptable(payload: string): boolean {
+  try {
+    decrypt(payload);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
