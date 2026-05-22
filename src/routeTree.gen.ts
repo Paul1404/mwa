@@ -15,7 +15,7 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiHealthRouteImport } from './routes/api.health'
 import { Route as AppDashboardRouteImport } from './routes/_app.dashboard'
-import { Route as AppCredentialsRouteImport } from './routes/_app.credentials'
+import { Route as AppCredentialsIndexRouteImport } from './routes/_app.credentials.index'
 import { Route as ApiRpcSplatRouteImport } from './routes/api.rpc.$'
 import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
 import { Route as AppRunsRunIdRouteImport } from './routes/_app.runs.$runId'
@@ -51,9 +51,9 @@ const AppDashboardRoute = AppDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AppRoute,
 } as any)
-const AppCredentialsRoute = AppCredentialsRouteImport.update({
-  id: '/credentials',
-  path: '/credentials',
+const AppCredentialsIndexRoute = AppCredentialsIndexRouteImport.update({
+  id: '/credentials/',
+  path: '/credentials/',
   getParentRoute: () => AppRoute,
 } as any)
 const ApiRpcSplatRoute = ApiRpcSplatRouteImport.update({
@@ -72,21 +72,20 @@ const AppRunsRunIdRoute = AppRunsRunIdRouteImport.update({
   getParentRoute: () => AppRoute,
 } as any)
 const AppCredentialsNewRoute = AppCredentialsNewRouteImport.update({
-  id: '/new',
-  path: '/new',
-  getParentRoute: () => AppCredentialsRoute,
+  id: '/credentials/new',
+  path: '/credentials/new',
+  getParentRoute: () => AppRoute,
 } as any)
 const AppCredentialsIdRoute = AppCredentialsIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => AppCredentialsRoute,
+  id: '/credentials/$id',
+  path: '/credentials/$id',
+  getParentRoute: () => AppRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
-  '/credentials': typeof AppCredentialsRouteWithChildren
   '/dashboard': typeof AppDashboardRoute
   '/api/health': typeof ApiHealthRoute
   '/credentials/$id': typeof AppCredentialsIdRoute
@@ -94,12 +93,12 @@ export interface FileRoutesByFullPath {
   '/runs/$runId': typeof AppRunsRunIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
+  '/credentials/': typeof AppCredentialsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
-  '/credentials': typeof AppCredentialsRouteWithChildren
   '/dashboard': typeof AppDashboardRoute
   '/api/health': typeof ApiHealthRoute
   '/credentials/$id': typeof AppCredentialsIdRoute
@@ -107,6 +106,7 @@ export interface FileRoutesByTo {
   '/runs/$runId': typeof AppRunsRunIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
+  '/credentials': typeof AppCredentialsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -114,7 +114,6 @@ export interface FileRoutesById {
   '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
-  '/_app/credentials': typeof AppCredentialsRouteWithChildren
   '/_app/dashboard': typeof AppDashboardRoute
   '/api/health': typeof ApiHealthRoute
   '/_app/credentials/$id': typeof AppCredentialsIdRoute
@@ -122,6 +121,7 @@ export interface FileRoutesById {
   '/_app/runs/$runId': typeof AppRunsRunIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
+  '/_app/credentials/': typeof AppCredentialsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -129,7 +129,6 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/signup'
-    | '/credentials'
     | '/dashboard'
     | '/api/health'
     | '/credentials/$id'
@@ -137,12 +136,12 @@ export interface FileRouteTypes {
     | '/runs/$runId'
     | '/api/auth/$'
     | '/api/rpc/$'
+    | '/credentials/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/login'
     | '/signup'
-    | '/credentials'
     | '/dashboard'
     | '/api/health'
     | '/credentials/$id'
@@ -150,13 +149,13 @@ export interface FileRouteTypes {
     | '/runs/$runId'
     | '/api/auth/$'
     | '/api/rpc/$'
+    | '/credentials'
   id:
     | '__root__'
     | '/'
     | '/_app'
     | '/login'
     | '/signup'
-    | '/_app/credentials'
     | '/_app/dashboard'
     | '/api/health'
     | '/_app/credentials/$id'
@@ -164,6 +163,7 @@ export interface FileRouteTypes {
     | '/_app/runs/$runId'
     | '/api/auth/$'
     | '/api/rpc/$'
+    | '/_app/credentials/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -220,11 +220,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDashboardRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/credentials': {
-      id: '/_app/credentials'
+    '/_app/credentials/': {
+      id: '/_app/credentials/'
       path: '/credentials'
-      fullPath: '/credentials'
-      preLoaderRoute: typeof AppCredentialsRouteImport
+      fullPath: '/credentials/'
+      preLoaderRoute: typeof AppCredentialsIndexRouteImport
       parentRoute: typeof AppRoute
     }
     '/api/rpc/$': {
@@ -250,45 +250,35 @@ declare module '@tanstack/react-router' {
     }
     '/_app/credentials/new': {
       id: '/_app/credentials/new'
-      path: '/new'
+      path: '/credentials/new'
       fullPath: '/credentials/new'
       preLoaderRoute: typeof AppCredentialsNewRouteImport
-      parentRoute: typeof AppCredentialsRoute
+      parentRoute: typeof AppRoute
     }
     '/_app/credentials/$id': {
       id: '/_app/credentials/$id'
-      path: '/$id'
+      path: '/credentials/$id'
       fullPath: '/credentials/$id'
       preLoaderRoute: typeof AppCredentialsIdRouteImport
-      parentRoute: typeof AppCredentialsRoute
+      parentRoute: typeof AppRoute
     }
   }
 }
 
-interface AppCredentialsRouteChildren {
+interface AppRouteChildren {
+  AppDashboardRoute: typeof AppDashboardRoute
   AppCredentialsIdRoute: typeof AppCredentialsIdRoute
   AppCredentialsNewRoute: typeof AppCredentialsNewRoute
-}
-
-const AppCredentialsRouteChildren: AppCredentialsRouteChildren = {
-  AppCredentialsIdRoute: AppCredentialsIdRoute,
-  AppCredentialsNewRoute: AppCredentialsNewRoute,
-}
-
-const AppCredentialsRouteWithChildren = AppCredentialsRoute._addFileChildren(
-  AppCredentialsRouteChildren,
-)
-
-interface AppRouteChildren {
-  AppCredentialsRoute: typeof AppCredentialsRouteWithChildren
-  AppDashboardRoute: typeof AppDashboardRoute
   AppRunsRunIdRoute: typeof AppRunsRunIdRoute
+  AppCredentialsIndexRoute: typeof AppCredentialsIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
-  AppCredentialsRoute: AppCredentialsRouteWithChildren,
   AppDashboardRoute: AppDashboardRoute,
+  AppCredentialsIdRoute: AppCredentialsIdRoute,
+  AppCredentialsNewRoute: AppCredentialsNewRoute,
   AppRunsRunIdRoute: AppRunsRunIdRoute,
+  AppCredentialsIndexRoute: AppCredentialsIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
@@ -305,12 +295,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}
