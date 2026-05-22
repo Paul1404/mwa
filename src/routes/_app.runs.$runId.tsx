@@ -162,7 +162,7 @@ function RunPage() {
             Started{" "}
             {initial.data?.run.startedAt
               ? new Date(initial.data.run.startedAt).toLocaleString()
-              : "—"}
+              : "Not started"}
           </span>
           {isLive ? (
             <Button

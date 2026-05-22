@@ -126,7 +126,7 @@ function EditCredentialPage() {
                 <span>
                   Stored key fingerprint:{" "}
                   <span className="font-mono text-[color:var(--color-text)]">
-                    {cred.data.publicKeyFingerprint ?? "—"}
+                    {cred.data.publicKeyFingerprint ?? "None"}
                   </span>
                 </span>
                 <Button

@@ -126,7 +126,7 @@ function Dashboard() {
                 </CardHeader>
                 <CardContent className="flex items-center justify-between">
                   <span className="text-xs text-[color:var(--color-muted)] truncate">
-                    {c.publicKeyFingerprint ?? "—"}
+                    {c.publicKeyFingerprint ?? "None"}
                   </span>
                   <div className="flex items-center gap-2">
                     <Link to="/credentials/$id" params={{ id: c.id }}>
