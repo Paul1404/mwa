@@ -15,7 +15,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
         name: "viewport",
         content: "width=device-width, initial-scale=1, viewport-fit=cover",
       },
-      { title: "MWA — Mailcow Web Updater" },
+      { title: "MWA: Mailcow Web Updater" },
       {
         name: "description",
         content: "Trigger Mailcow upgrades over SSH from a browser, with live terminal output.",

@@ -46,7 +46,7 @@ function CredentialsPage() {
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="hidden md:block text-xs text-[color:var(--color-muted)] font-mono truncate max-w-xs">
-                    {c.publicKeyFingerprint ?? "—"}
+                    {c.publicKeyFingerprint ?? "None"}
                   </span>
                   <Link to="/credentials/$id" params={{ id: c.id }}>
                     <Button variant="secondary" size="sm">

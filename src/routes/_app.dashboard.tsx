@@ -1,9 +1,11 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { CircleCheck, CircleX, Loader2, Play, Plus, Server } from "lucide-react";
+import { useState } from "react";
+import { PreflightPanel } from "~/components/preflight-panel";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
-import { orpc, orpcQuery } from "~/lib/orpc";
+import { orpcQuery } from "~/lib/orpc";
 
 export const Route = createFileRoute("/_app/dashboard")({
   component: Dashboard,
@@ -55,7 +57,6 @@ function StatusPill({ status }: { status: string }) {
 }
 
 function Dashboard() {
-  const queryClient = useQueryClient();
   const router = useRouter();
   const credentials = useQuery(orpcQuery.credentials.list.queryOptions());
   const runs = useQuery(orpcQuery.runs.list.queryOptions({ input: { limit: 10 } }));
@@ -63,15 +64,7 @@ function Dashboard() {
     ...orpcQuery.runs.active.queryOptions(),
     refetchInterval: 5000,
   });
-
-  const triggerMut = useMutation({
-    mutationFn: async (credentialId: string) => orpc.runs.trigger({ id: credentialId }),
-    onSuccess: ({ runId }) => {
-      queryClient.invalidateQueries({ queryKey: orpcQuery.runs.list.key() });
-      queryClient.invalidateQueries({ queryKey: orpcQuery.runs.active.key() });
-      router.navigate({ to: "/runs/$runId", params: { runId } });
-    },
-  });
+  const [planningId, setPlanningId] = useState<string | null>(null);
 
   return (
     <div className="flex flex-col gap-8">
@@ -124,24 +117,36 @@ function Dashboard() {
                     {c.username}@{c.host}:{c.port}
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="flex items-center justify-between">
-                  <span className="text-xs text-[color:var(--color-muted)] truncate">
-                    {c.publicKeyFingerprint ?? "—"}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <Link to="/credentials/$id" params={{ id: c.id }}>
-                      <Button variant="ghost" size="sm">
-                        Edit
+                <CardContent className="flex flex-col gap-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-[color:var(--color-muted)] truncate">
+                      {c.publicKeyFingerprint ?? "None"}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <Link to="/credentials/$id" params={{ id: c.id }}>
+                        <Button variant="ghost" size="sm">
+                          Edit
+                        </Button>
+                      </Link>
+                      <Button
+                        size="sm"
+                        onClick={() => setPlanningId(c.id)}
+                        disabled={!!active.data || planningId === c.id}
+                      >
+                        <Play className="size-3.5" /> Plan update
                       </Button>
-                    </Link>
-                    <Button
-                      size="sm"
-                      onClick={() => triggerMut.mutate(c.id)}
-                      disabled={triggerMut.isPending || !!active.data}
-                    >
-                      <Play className="size-3.5" /> Run update
-                    </Button>
+                    </div>
                   </div>
+                  {planningId === c.id ? (
+                    <PreflightPanel
+                      credentialId={c.id}
+                      disabled={!!active.data}
+                      onClose={() => setPlanningId(null)}
+                      onStart={(runId) =>
+                        router.navigate({ to: "/runs/$runId", params: { runId } })
+                      }
+                    />
+                  ) : null}
                 </CardContent>
               </Card>
             ))}
@@ -160,11 +165,6 @@ function Dashboard() {
             </CardContent>
           </Card>
         )}
-        {triggerMut.error ? (
-          <p className="mt-3 text-sm text-[color:var(--color-danger)]">
-            {(triggerMut.error as Error).message}
-          </p>
-        ) : null}
       </section>
 
       <section>

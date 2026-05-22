@@ -1,5 +1,5 @@
 import { Link, useRouter } from "@tanstack/react-router";
-import { LogOut, Server, Terminal } from "lucide-react";
+import { LogOut, ScrollText, Server, Terminal } from "lucide-react";
 import { authClient } from "~/lib/auth-client";
 import { Button } from "./ui/button";
 
@@ -32,6 +32,13 @@ export function AppNav({ email }: { email: string | undefined }) {
             >
               <Server className="size-3.5" />
               Credentials
+            </Link>
+            <Link
+              to="/audit"
+              className="px-3 py-1.5 rounded-md text-[color:var(--color-muted)] hover:text-[color:var(--color-text)] [&.active]:text-[color:var(--color-text)] [&.active]:bg-[color:var(--color-surface-2)] flex items-center gap-2"
+            >
+              <ScrollText className="size-3.5" />
+              Audit
             </Link>
           </nav>
         </div>

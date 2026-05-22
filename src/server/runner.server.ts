@@ -1,8 +1,9 @@
 import { eq } from "drizzle-orm";
+import { audit } from "./audit.server";
 import { decrypt } from "./crypto.server";
 import { db, schema } from "./db";
 import type { UpdateRunStatus } from "./db/schema";
-import { type CommandEvent, connect, execStream } from "./ssh.server";
+import { type CommandEvent, connect, execStream, HostKeyMismatchError } from "./ssh.server";
 
 export type RunStep = "grafana_down" | "mailcow_update" | "grafana_up" | "docker_prune";
 
@@ -121,6 +122,7 @@ async function persistLog(
   stream: "stdout" | "stderr" | "system",
   step: RunStep | "init",
   line: string,
+  emittedAt: string,
 ) {
   await db.insert(schema.updateRunLogs).values({
     runId,
@@ -128,6 +130,7 @@ async function persistLog(
     stream,
     step,
     line,
+    emittedAt,
   });
 }
 
@@ -155,6 +158,7 @@ export async function executeRun(runId: string, credentialId: string): Promise<v
     line: string,
   ) => {
     seq += 1;
+    const at = new Date().toISOString();
     const ev: RunLogEvent = {
       kind: "log",
       runId,
@@ -162,10 +166,10 @@ export async function executeRun(runId: string, credentialId: string): Promise<v
       stream,
       seq,
       line,
-      at: new Date().toISOString(),
+      at,
     };
     runBroadcaster.publish(ev);
-    await persistLog(runId, seq, stream, step, line);
+    await persistLog(runId, seq, stream, step, line, at);
   };
 
   const finalize = async (
@@ -211,16 +215,35 @@ export async function executeRun(runId: string, credentialId: string): Promise<v
     const privateKey = decrypt(cred.privateKeyEnc);
     const passphrase = cred.passphraseEnc ? decrypt(cred.passphraseEnc) : undefined;
 
-    const client = await connect(
+    const { client, hostFingerprint } = await connect(
       {
         host: cred.host,
         port: cred.port,
         username: cred.username,
         privateKey,
         passphrase,
+        expectedHostFingerprint: cred.hostFingerprint,
       },
       signal,
     );
+
+    if (!cred.hostFingerprint) {
+      await db
+        .update(schema.sshCredentials)
+        .set({ hostFingerprint, updatedAt: new Date() })
+        .where(eq(schema.sshCredentials.id, cred.id));
+      await emit("init", "system", `pinned host key on first connect: ${hostFingerprint}`);
+      await audit({
+        userId: null,
+        action: "credential.host_key.pinned",
+        targetType: "credential",
+        targetId: cred.id,
+        metadata: { hostFingerprint, runId },
+      });
+    } else {
+      await emit("init", "system", `host key verified: ${hostFingerprint}`);
+    }
+
     await emit("init", "system", "connection established");
 
     let exitCode: number | null = 0;
@@ -258,16 +281,58 @@ export async function executeRun(runId: string, credentialId: string): Promise<v
     if (exitCode === 0) {
       await emit("docker_prune", "system", "all steps completed successfully");
       await finalize("success", 0, null);
+      await audit({
+        userId: null,
+        action: "run.complete",
+        targetType: "run",
+        targetId: runId,
+        metadata: { status: "success", credentialId },
+      });
     } else {
       await finalize("failed", exitCode, `pipeline halted with exit code ${exitCode}`);
+      await audit({
+        userId: null,
+        action: "run.complete",
+        targetType: "run",
+        targetId: runId,
+        metadata: { status: "failed", exitCode, credentialId },
+      });
     }
   } catch (err) {
     const aborted =
       err instanceof Error &&
       (err.message === "aborted" || err.name === "AbortError" || signal.aborted);
     const message = err instanceof Error ? err.message : String(err);
-    await emit("init", "system", aborted ? "run canceled" : `error: ${message}`);
+
+    if (err instanceof HostKeyMismatchError) {
+      await emit(
+        "init",
+        "stderr",
+        `host key mismatch! pinned ${err.expected} but server presented ${err.actual}`,
+      );
+      await emit(
+        "init",
+        "system",
+        "aborting run. inspect the server and, if the new key is legitimate, clear the pin in credential settings.",
+      );
+      await audit({
+        userId: null,
+        action: "credential.host_key.changed",
+        targetType: "credential",
+        targetId: credentialId,
+        metadata: { expected: err.expected, actual: err.actual, runId },
+      });
+    } else {
+      await emit("init", "system", aborted ? "run canceled" : `error: ${message}`);
+    }
     await finalize(aborted ? "canceled" : "failed", null, message);
+    await audit({
+      userId: null,
+      action: "run.complete",
+      targetType: "run",
+      targetId: runId,
+      metadata: { status: aborted ? "canceled" : "failed", error: message, credentialId },
+    });
   } finally {
     runLock.release(runId);
   }

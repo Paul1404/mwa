@@ -61,3 +61,34 @@
   color: hsl(199 95% 70%);
   font-weight: 500;
 }
+
+/* ANSI colors emitted by remote commands (update.sh, docker, etc.) */
+.term .ansi-black   { color: hsl(0 0% 30%); }
+.term .ansi-red     { color: hsl(0 75% 65%); }
+.term .ansi-green   { color: hsl(140 60% 60%); }
+.term .ansi-yellow  { color: hsl(45 90% 60%); }
+.term .ansi-blue    { color: hsl(210 90% 70%); }
+.term .ansi-magenta { color: hsl(300 70% 70%); }
+.term .ansi-cyan    { color: hsl(180 70% 60%); }
+.term .ansi-white   { color: hsl(0 0% 90%); }
+.term .ansi-bright-black   { color: hsl(0 0% 50%); }
+.term .ansi-bright-red     { color: hsl(0 90% 70%); }
+.term .ansi-bright-green   { color: hsl(140 80% 65%); }
+.term .ansi-bright-yellow  { color: hsl(50 100% 65%); }
+.term .ansi-bright-blue    { color: hsl(210 100% 75%); }
+.term .ansi-bright-magenta { color: hsl(300 90% 75%); }
+.term .ansi-bright-cyan    { color: hsl(180 90% 70%); }
+.term .ansi-bright-white   { color: hsl(0 0% 100%); }
+.term .ansi-black-bg   { background-color: hsl(0 0% 15%); }
+.term .ansi-red-bg     { background-color: hsl(0 60% 30%); }
+.term .ansi-green-bg   { background-color: hsl(140 50% 25%); }
+.term .ansi-yellow-bg  { background-color: hsl(45 60% 30%); }
+.term .ansi-blue-bg    { background-color: hsl(210 60% 30%); }
+.term .ansi-magenta-bg { background-color: hsl(300 50% 30%); }
+.term .ansi-cyan-bg    { background-color: hsl(180 50% 25%); }
+.term .ansi-white-bg   { background-color: hsl(0 0% 80%); color: hsl(0 0% 10%); }
+.term .ansi-bold      { font-weight: 700; }
+.term .ansi-dim       { opacity: 0.7; }
+.term .ansi-italic    { font-style: italic; }
+.term .ansi-underline { text-decoration: underline; }
+.term .ansi-strikethrough { text-decoration: line-through; }

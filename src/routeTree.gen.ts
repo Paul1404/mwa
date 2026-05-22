@@ -15,6 +15,7 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiHealthRouteImport } from './routes/api.health'
 import { Route as AppDashboardRouteImport } from './routes/_app.dashboard'
+import { Route as AppAuditRouteImport } from './routes/_app.audit'
 import { Route as AppCredentialsIndexRouteImport } from './routes/_app.credentials.index'
 import { Route as ApiRpcSplatRouteImport } from './routes/api.rpc.$'
 import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
@@ -49,6 +50,11 @@ const ApiHealthRoute = ApiHealthRouteImport.update({
 const AppDashboardRoute = AppDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAuditRoute = AppAuditRouteImport.update({
+  id: '/audit',
+  path: '/audit',
   getParentRoute: () => AppRoute,
 } as any)
 const AppCredentialsIndexRoute = AppCredentialsIndexRouteImport.update({
@@ -86,6 +92,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
+  '/audit': typeof AppAuditRoute
   '/dashboard': typeof AppDashboardRoute
   '/api/health': typeof ApiHealthRoute
   '/credentials/$id': typeof AppCredentialsIdRoute
@@ -99,6 +106,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
+  '/audit': typeof AppAuditRoute
   '/dashboard': typeof AppDashboardRoute
   '/api/health': typeof ApiHealthRoute
   '/credentials/$id': typeof AppCredentialsIdRoute
@@ -114,6 +122,7 @@ export interface FileRoutesById {
   '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
+  '/_app/audit': typeof AppAuditRoute
   '/_app/dashboard': typeof AppDashboardRoute
   '/api/health': typeof ApiHealthRoute
   '/_app/credentials/$id': typeof AppCredentialsIdRoute
@@ -129,6 +138,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/signup'
+    | '/audit'
     | '/dashboard'
     | '/api/health'
     | '/credentials/$id'
@@ -142,6 +152,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/signup'
+    | '/audit'
     | '/dashboard'
     | '/api/health'
     | '/credentials/$id'
@@ -156,6 +167,7 @@ export interface FileRouteTypes {
     | '/_app'
     | '/login'
     | '/signup'
+    | '/_app/audit'
     | '/_app/dashboard'
     | '/api/health'
     | '/_app/credentials/$id'
@@ -220,6 +232,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDashboardRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/audit': {
+      id: '/_app/audit'
+      path: '/audit'
+      fullPath: '/audit'
+      preLoaderRoute: typeof AppAuditRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/credentials/': {
       id: '/_app/credentials/'
       path: '/credentials'
@@ -266,6 +285,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
+  AppAuditRoute: typeof AppAuditRoute
   AppDashboardRoute: typeof AppDashboardRoute
   AppCredentialsIdRoute: typeof AppCredentialsIdRoute
   AppCredentialsNewRoute: typeof AppCredentialsNewRoute
@@ -274,6 +294,7 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppAuditRoute: AppAuditRoute,
   AppDashboardRoute: AppDashboardRoute,
   AppCredentialsIdRoute: AppCredentialsIdRoute,
   AppCredentialsNewRoute: AppCredentialsNewRoute,
@@ -295,3 +316,12 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}

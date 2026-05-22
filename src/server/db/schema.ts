@@ -1,5 +1,14 @@
 import { relations, sql } from "drizzle-orm";
-import { boolean, integer, pgTable, text, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+  varchar,
+} from "drizzle-orm/pg-core";
 
 // ---------------------------------------------------------------------------
 // better-auth tables (generated via `bunx @better-auth/cli generate`, hand
@@ -80,11 +89,27 @@ export const sshCredentials = pgTable("ssh_credentials", {
   // SHA-256 fingerprint of the public key, surfaced in the UI so users can
   // verify they configured the right key without ever seeing the secret.
   publicKeyFingerprint: varchar("public_key_fingerprint", { length: 95 }),
+  // Pinned SHA-256 fingerprint of the REMOTE host's key (OpenSSH-style:
+  // "SHA256:<base64>"). Captured TOFU on first successful connect; later
+  // connects compare against this value and refuse on mismatch.
+  hostFingerprint: varchar("host_fingerprint", { length: 80 }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   createdBy: text("created_by")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
+});
+
+export const auditEvents = pgTable("audit_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
+  action: varchar("action", { length: 64 }).notNull(),
+  targetType: varchar("target_type", { length: 32 }),
+  targetId: text("target_id"),
+  metadata: jsonb("metadata"),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const updateRunStatus = ["pending", "running", "success", "failed", "canceled"] as const;
