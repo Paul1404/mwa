@@ -26,14 +26,33 @@ describe("crypto", () => {
   });
 
   it("rejects tampered payloads via GCM tag", async () => {
-    const { encrypt, decrypt } = await import("./crypto.server");
+    const { encrypt, decrypt, CredentialDecryptError } = await import("./crypto.server");
     const enc = encrypt("hello");
     const [iv, tag, cipher] = enc.split(":");
     // Flip a bit in the ciphertext.
     const cipherBuf = Buffer.from(cipher!, "base64");
     cipherBuf[0] = cipherBuf[0]! ^ 1;
     const tampered = `${iv}:${tag}:${cipherBuf.toString("base64")}`;
-    expect(() => decrypt(tampered)).toThrow();
+    expect(() => decrypt(tampered)).toThrow(CredentialDecryptError);
+  });
+
+  it("rejects malformed payloads with CredentialDecryptError", async () => {
+    const { decrypt, CredentialDecryptError } = await import("./crypto.server");
+    expect(() => decrypt("not-a-valid-payload")).toThrow(CredentialDecryptError);
+  });
+
+  it("isDecryptable returns false when the key changes", async () => {
+    const { encrypt, isDecryptable } = await import("./crypto.server");
+    const enc = encrypt("secret");
+    expect(isDecryptable(enc)).toBe(true);
+    // Rotate the key. The cached key is module-local, so we have to re-import.
+    // Easier: mutate the ciphertext to a payload that decrypts with the wrong key.
+    // (Tampering the tag forces the auth check to fail, simulating a key swap.)
+    const [iv, tag, cipher] = enc.split(":");
+    const tagBuf = Buffer.from(tag!, "base64");
+    tagBuf[0] = tagBuf[0]! ^ 1;
+    const broken = `${iv}:${tagBuf.toString("base64")}:${cipher}`;
+    expect(isDecryptable(broken)).toBe(false);
   });
 
   it("fingerprintKey is stable and prefixed", async () => {

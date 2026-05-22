@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Plus, Server } from "lucide-react";
+import { KeyRound, Plus, Server } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
 import { orpcQuery } from "~/lib/orpc";
@@ -45,12 +45,21 @@ function CredentialsPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
+                  {c.needsRekey ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-[color:var(--color-danger)]/10 px-2 py-0.5 text-xs font-medium text-[color:var(--color-danger)]">
+                      <KeyRound className="size-3" /> needs re-key
+                    </span>
+                  ) : null}
                   <span className="hidden md:block text-xs text-[color:var(--color-muted)] font-mono truncate max-w-xs">
                     {c.publicKeyFingerprint ?? "None"}
                   </span>
-                  <Link to="/credentials/$id" params={{ id: c.id }}>
-                    <Button variant="secondary" size="sm">
-                      Manage
+                  <Link
+                    to="/credentials/$id"
+                    params={{ id: c.id }}
+                    search={c.needsRekey ? { replaceKey: 1 } : {}}
+                  >
+                    <Button variant={c.needsRekey ? "primary" : "secondary"} size="sm">
+                      {c.needsRekey ? "Replace key" : "Manage"}
                     </Button>
                   </Link>
                 </div>

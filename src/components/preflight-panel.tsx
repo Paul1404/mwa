@@ -1,9 +1,22 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { CheckCircle2, Info, KeyRound, Loader2, Play, ShieldAlert, X, XCircle } from "lucide-react";
 import type { ComponentType } from "react";
 import { useEffect, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { orpc, orpcQuery } from "~/lib/orpc";
+
+function decryptFailureCredentialId(err: unknown): string | null {
+  if (!err || typeof err !== "object") return null;
+  const data = (err as { data?: unknown }).data;
+  if (!data || typeof data !== "object") return null;
+  const reason = (data as { reason?: unknown }).reason;
+  const credentialId = (data as { credentialId?: unknown }).credentialId;
+  if (reason === "credential_unreadable" && typeof credentialId === "string") {
+    return credentialId;
+  }
+  return null;
+}
 
 type CheckStatus = "ok" | "warn" | "fail" | "info";
 
@@ -107,9 +120,37 @@ export function PreflightPanel({
           <Loader2 className="size-4 animate-spin" /> Running checks...
         </div>
       ) : preflight.error ? (
-        <div className="text-sm text-[color:var(--color-danger)]">
-          {(preflight.error as Error).message}
-        </div>
+        (() => {
+          const rekeyId = decryptFailureCredentialId(preflight.error);
+          if (rekeyId) {
+            return (
+              <div className="rounded-md border border-[color:var(--color-danger)]/50 bg-[color:var(--color-danger)]/10 p-3 text-sm flex flex-col gap-2">
+                <div className="flex items-start gap-2 text-[color:var(--color-danger)]">
+                  <KeyRound className="size-4 mt-0.5 shrink-0" />
+                  <span className="font-medium">
+                    This credential can&apos;t be decrypted with the current ENCRYPTION_KEY.
+                  </span>
+                </div>
+                <p className="text-xs text-[color:var(--color-muted)]">
+                  The stored secret was encrypted with a different key than the one the server is
+                  using now. Re-enter the private key to re-encrypt it with the active key.
+                </p>
+                <div className="flex justify-end">
+                  <Link to="/credentials/$id" params={{ id: rekeyId }} search={{ replaceKey: 1 }}>
+                    <Button type="button" size="sm">
+                      <KeyRound className="size-3.5" /> Replace key
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            );
+          }
+          return (
+            <div className="text-sm text-[color:var(--color-danger)]">
+              {(preflight.error as Error).message}
+            </div>
+          );
+        })()
       ) : report ? (
         <>
           <div className="text-xs text-[color:var(--color-muted)] flex items-center gap-2">

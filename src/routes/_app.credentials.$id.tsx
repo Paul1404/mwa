@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { KeyRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
@@ -7,7 +8,14 @@ import { Input, Textarea } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { orpc, orpcQuery } from "~/lib/orpc";
 
+type EditCredentialSearch = {
+  replaceKey?: 1;
+};
+
 export const Route = createFileRoute("/_app/credentials/$id")({
+  validateSearch: (raw: Record<string, unknown>): EditCredentialSearch => ({
+    replaceKey: raw.replaceKey === 1 || raw.replaceKey === "1" ? 1 : undefined,
+  }),
   component: EditCredentialPage,
 });
 
@@ -15,6 +23,7 @@ function EditCredentialPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { id } = Route.useParams();
+  const search = Route.useSearch();
   const cred = useQuery(orpcQuery.credentials.get.queryOptions({ input: { id } }));
 
   const [label, setLabel] = useState("");
@@ -23,7 +32,7 @@ function EditCredentialPage() {
   const [username, setUsername] = useState("");
   const [privateKey, setPrivateKey] = useState("");
   const [passphrase, setPassphrase] = useState("");
-  const [replaceKey, setReplaceKey] = useState(false);
+  const [replaceKey, setReplaceKey] = useState(search.replaceKey === 1);
 
   useEffect(() => {
     if (cred.data) {
@@ -33,6 +42,12 @@ function EditCredentialPage() {
       setUsername(cred.data.username);
     }
   }, [cred.data]);
+
+  // If the user lands here via the "Replace key" CTA, auto-open the replace
+  // section even if the credential loads after the search param is read.
+  useEffect(() => {
+    if (search.replaceKey === 1) setReplaceKey(true);
+  }, [search.replaceKey]);
 
   const update = useMutation({
     mutationFn: async () =>
@@ -127,6 +142,21 @@ function EditCredentialPage() {
                 />
               </div>
             </div>
+
+            {cred.data.needsRekey ? (
+              <div className="rounded-md border border-[color:var(--color-danger)]/50 bg-[color:var(--color-danger)]/10 p-4 text-sm flex flex-col gap-2">
+                <div className="flex items-start gap-2 text-[color:var(--color-danger)]">
+                  <KeyRound className="size-4 mt-0.5 shrink-0" />
+                  <span className="font-medium">
+                    This credential can&apos;t be decrypted with the current ENCRYPTION_KEY.
+                  </span>
+                </div>
+                <p className="text-xs text-[color:var(--color-muted)]">
+                  The stored secret was encrypted with a different key than the one the server is
+                  using now. Re-enter the private key below to re-encrypt it with the active key.
+                </p>
+              </div>
+            ) : null}
 
             <div className="rounded-md border border-[color:var(--color-border)] bg-[color:var(--color-surface-2)] p-4 text-xs text-[color:var(--color-muted)]">
               <div className="flex items-center justify-between mb-2">
