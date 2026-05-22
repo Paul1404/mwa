@@ -398,6 +398,91 @@ const preflightRun = authed
     }
   });
 
+const StepStat = v.object({
+  step: v.string(),
+  avgMs: v.number(),
+  samples: v.number(),
+});
+
+const RunStatsOut = v.object({
+  totalAvgMs: v.number(),
+  samples: v.number(),
+  steps: v.array(StepStat),
+});
+
+const runStats = authed
+  .input(v.object({ credentialId: v.optional(v.pipe(v.string(), v.uuid())) }))
+  .output(RunStatsOut)
+  .handler(async ({ input }) => {
+    // Pull the last few successful runs for this credential (or any credential
+    // if none specified) and compute per-step averages from the log timestamps.
+    const recent = await db
+      .select({ id: schema.updateRuns.id })
+      .from(schema.updateRuns)
+      .where(
+        input.credentialId
+          ? and(
+              eq(schema.updateRuns.status, "success"),
+              eq(schema.updateRuns.credentialId, input.credentialId),
+            )
+          : eq(schema.updateRuns.status, "success"),
+      )
+      .orderBy(desc(schema.updateRuns.startedAt))
+      .limit(5);
+
+    if (recent.length === 0) {
+      return { totalAvgMs: 0, samples: 0, steps: [] };
+    }
+
+    const stepSums = new Map<string, { totalMs: number; count: number }>();
+    let totalMs = 0;
+    let totalCount = 0;
+
+    for (const r of recent) {
+      const logs = await db
+        .select({
+          step: schema.updateRunLogs.step,
+          emittedAt: schema.updateRunLogs.emittedAt,
+        })
+        .from(schema.updateRunLogs)
+        .where(eq(schema.updateRunLogs.runId, r.id))
+        .orderBy(schema.updateRunLogs.seq);
+
+      if (logs.length < 2) continue;
+
+      const stepBounds = new Map<string, { start: number; end: number }>();
+      for (const l of logs) {
+        const t = new Date(l.emittedAt).getTime();
+        const existing = stepBounds.get(l.step);
+        if (!existing) stepBounds.set(l.step, { start: t, end: t });
+        else existing.end = t;
+      }
+
+      let runTotal = 0;
+      for (const [step, { start, end }] of stepBounds) {
+        const dur = end - start;
+        if (dur < 0) continue;
+        const acc = stepSums.get(step) ?? { totalMs: 0, count: 0 };
+        acc.totalMs += dur;
+        acc.count += 1;
+        stepSums.set(step, acc);
+        runTotal += dur;
+      }
+      totalMs += runTotal;
+      totalCount += 1;
+    }
+
+    return {
+      totalAvgMs: totalCount > 0 ? Math.round(totalMs / totalCount) : 0,
+      samples: totalCount,
+      steps: Array.from(stepSums.entries()).map(([step, { totalMs, count }]) => ({
+        step,
+        avgMs: Math.round(totalMs / count),
+        samples: count,
+      })),
+    };
+  });
+
 const triggerRun = authed
   .input(CredentialIdInput)
   .output(v.object({ runId: v.string() }))
@@ -621,6 +706,7 @@ export const appRouter = {
     get: getRun,
     active: activeRun,
     preflight: preflightRun,
+    stats: runStats,
     trigger: triggerRun,
     cancel: cancelRun,
     stream: streamRun,

@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { CircleCheck, CircleX, Loader2, StopCircle } from "lucide-react";
+import { Bell, BellOff, CircleCheck, CircleX, Clock, Loader2, StopCircle } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Terminal, type TerminalLine } from "~/components/terminal";
+import { RunSteps, type StepLine } from "~/components/run-steps";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { orpc, orpcQuery } from "~/lib/orpc";
@@ -48,11 +48,15 @@ function RunPage() {
   const { runId } = Route.useParams();
   const queryClient = useQueryClient();
   const initial = useQuery(orpcQuery.runs.get.queryOptions({ input: { id: runId } }));
+  const stats = useQuery(orpcQuery.runs.stats.queryOptions({ input: {} }));
 
-  const [lines, setLines] = useState<TerminalLine[]>([]);
+  const [lines, setLines] = useState<StepLine[]>([]);
   const [status, setStatus] = useState<LiveStatus | null>(null);
+  const [now, setNow] = useState<number>(Date.now());
+  const [notify, setNotify] = useState<boolean>(false);
   const seenSeqRef = useRef<number>(0);
   const abortRef = useRef<AbortController | null>(null);
+  const notifiedRef = useRef<boolean>(false);
 
   // Seed terminal from persisted logs once.
   useEffect(() => {
@@ -63,6 +67,7 @@ function RunPage() {
         step: l.step,
         stream: l.stream,
         line: l.line,
+        at: l.emittedAt,
       })),
     );
     seenSeqRef.current = initial.data.logs.length
@@ -75,6 +80,34 @@ function RunPage() {
       finishedAt: initial.data.run.finishedAt,
     });
   }, [initial.data]);
+
+  // Tick a clock for live duration display while the run is active.
+  const isLive = status?.status === "running" || status?.status === "pending";
+  useEffect(() => {
+    if (!isLive) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [isLive]);
+
+  // Browser notification on completion (only if the tab is not focused).
+  useEffect(() => {
+    if (!status || isLive || notifiedRef.current) return;
+    if (!notify || typeof Notification === "undefined") return;
+    if (Notification.permission !== "granted") return;
+    if (document.hidden) {
+      notifiedRef.current = true;
+      const title =
+        status.status === "success"
+          ? "Mailcow update finished"
+          : status.status === "failed"
+            ? "Mailcow update failed"
+            : "Mailcow update canceled";
+      new Notification(title, {
+        body: `Run ${runId.slice(0, 8)} ${status.status}`,
+        tag: `mwa-run-${runId}`,
+      });
+    }
+  }, [status, isLive, notify, runId]);
 
   // Stream live updates.
   useEffect(() => {
@@ -107,6 +140,7 @@ function RunPage() {
                 step: String(ev.step ?? ""),
                 stream: String(ev.stream ?? "stdout"),
                 line: String(ev.line ?? ""),
+                at: ev.at == null ? undefined : String(ev.at),
               },
             ]);
           } else if (ev.kind === "status") {
@@ -136,7 +170,29 @@ function RunPage() {
     mutationFn: async () => orpc.runs.cancel({ id: runId }),
   });
 
-  const stepGroups = useMemo(() => groupByStep(lines), [lines]);
+  const stepEtaMs = useMemo(() => {
+    if (!stats.data) return undefined;
+    const out: Record<string, number> = {};
+    for (const s of stats.data.steps) out[s.step] = s.avgMs;
+    return out;
+  }, [stats.data]);
+
+  const eta = useMemo(() => {
+    if (!isLive || !stats.data?.totalAvgMs || !initial.data) return null;
+    const elapsed = now - new Date(initial.data.run.startedAt).getTime();
+    const remaining = stats.data.totalAvgMs - elapsed;
+    return remaining > 0 ? remaining : null;
+  }, [isLive, stats.data, initial.data, now]);
+
+  const toggleNotify = async () => {
+    if (typeof Notification === "undefined") return;
+    if (Notification.permission === "default") {
+      const perm = await Notification.requestPermission();
+      if (perm === "granted") setNotify(true);
+      return;
+    }
+    setNotify((v) => !v);
+  };
 
   if (initial.isLoading)
     return <p className="text-sm text-[color:var(--color-muted)]">Loading...</p>;
@@ -145,8 +201,6 @@ function RunPage() {
       <p className="text-sm text-[color:var(--color-danger)]">{(initial.error as Error).message}</p>
     );
   if (!status) return null;
-
-  const isLive = status.status === "running" || status.status === "pending";
 
   return (
     <div className="flex flex-col gap-6">
@@ -157,72 +211,54 @@ function RunPage() {
             <StatusBanner status={status} />
           </div>
         </CardHeader>
-        <CardContent className="flex items-center justify-between text-xs text-[color:var(--color-muted)]">
+        <CardContent className="flex items-center justify-between text-xs text-[color:var(--color-muted)] gap-4 flex-wrap">
           <span>
             Started{" "}
             {initial.data?.run.startedAt
               ? new Date(initial.data.run.startedAt).toLocaleString()
               : "Not started"}
           </span>
-          {isLive ? (
-            <Button
-              variant="danger"
-              size="sm"
-              disabled={cancelMut.isPending}
-              onClick={() => cancelMut.mutate()}
-            >
-              <StopCircle className="size-3.5" /> Cancel
-            </Button>
-          ) : null}
+          <div className="flex items-center gap-3">
+            {isLive && eta !== null ? (
+              <span className="inline-flex items-center gap-1.5">
+                <Clock className="size-3.5" />~{formatMs(eta)} left
+              </span>
+            ) : null}
+            {isLive ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={toggleNotify}
+                title={notify ? "Notifications enabled" : "Notify me when this finishes"}
+              >
+                {notify ? <Bell className="size-3.5" /> : <BellOff className="size-3.5" />}
+              </Button>
+            ) : null}
+            {isLive ? (
+              <Button
+                variant="danger"
+                size="sm"
+                disabled={cancelMut.isPending}
+                onClick={() => cancelMut.mutate()}
+              >
+                <StopCircle className="size-3.5" /> Cancel
+              </Button>
+            ) : null}
+          </div>
         </CardContent>
       </Card>
 
-      <div className="flex flex-wrap gap-2">
-        {STEP_ORDER.map((id) => {
-          const group = stepGroups.get(id);
-          const active = !!group && group.length > 0;
-          return (
-            <span
-              key={id}
-              className={`text-xs px-2.5 py-1 rounded-full border ${
-                active
-                  ? "border-[color:var(--color-accent)] text-[color:var(--color-accent)] bg-[color:var(--color-accent-soft)]/40"
-                  : "border-[color:var(--color-border)] text-[color:var(--color-muted)]"
-              }`}
-            >
-              {STEP_LABELS[id]}
-            </span>
-          );
-        })}
-      </div>
-
-      <Terminal lines={lines} />
+      <RunSteps lines={lines} runStatus={status.status} stepEtaMs={stepEtaMs} now={now} />
     </div>
   );
 }
 
-const STEP_ORDER = [
-  "init",
-  "grafana_down",
-  "mailcow_update",
-  "grafana_up",
-  "docker_prune",
-] as const;
-
-const STEP_LABELS: Record<string, string> = {
-  init: "Connect",
-  grafana_down: "Grafana down",
-  mailcow_update: "Mailcow update",
-  grafana_up: "Grafana up",
-  docker_prune: "Docker prune",
-};
-
-function groupByStep(lines: TerminalLine[]) {
-  const out = new Map<string, TerminalLine[]>();
-  for (const l of lines) {
-    const arr = out.get(l.step) ?? [];
-    arr.push(l);
-    out.set(l.step, arr);
-  }
-  return out;
+function formatMs(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  const rs = s % 60;
+  return `${m}m ${rs}s`;
 }

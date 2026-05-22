@@ -122,6 +122,7 @@ async function persistLog(
   stream: "stdout" | "stderr" | "system",
   step: RunStep | "init",
   line: string,
+  emittedAt: string,
 ) {
   await db.insert(schema.updateRunLogs).values({
     runId,
@@ -129,6 +130,7 @@ async function persistLog(
     stream,
     step,
     line,
+    emittedAt,
   });
 }
 
@@ -156,6 +158,7 @@ export async function executeRun(runId: string, credentialId: string): Promise<v
     line: string,
   ) => {
     seq += 1;
+    const at = new Date().toISOString();
     const ev: RunLogEvent = {
       kind: "log",
       runId,
@@ -163,10 +166,10 @@ export async function executeRun(runId: string, credentialId: string): Promise<v
       stream,
       seq,
       line,
-      at: new Date().toISOString(),
+      at,
     };
     runBroadcaster.publish(ev);
-    await persistLog(runId, seq, stream, step, line);
+    await persistLog(runId, seq, stream, step, line, at);
   };
 
   const finalize = async (
