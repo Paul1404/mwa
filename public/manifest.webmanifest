@@ -1,0 +1,27 @@
+{
+  "name": "Mailcow Web Updater",
+  "short_name": "MWA",
+  "description": "Trigger Mailcow upgrades over SSH from a browser.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0c111a",
+  "theme_color": "#0e1217",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

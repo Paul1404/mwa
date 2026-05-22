@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    color-scheme: dark light;
+  }
+  html,
+  body {
+    background: hsl(222 14% 8%);
+    color: hsl(0 0% 96%);
+    -webkit-font-smoothing: antialiased;
+    font-family:
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      "Segoe UI",
+      Roboto,
+      "Inter",
+      "Helvetica Neue",
+      sans-serif;
+  }
+  body {
+    min-height: 100dvh;
+  }
+}
+
+@theme {
+  --color-bg: hsl(222 14% 8%);
+  --color-surface: hsl(222 14% 11%);
+  --color-surface-2: hsl(222 14% 14%);
+  --color-border: hsl(222 10% 22%);
+  --color-text: hsl(0 0% 96%);
+  --color-muted: hsl(0 0% 64%);
+  --color-accent: hsl(199 95% 56%);
+  --color-accent-soft: hsl(199 70% 18%);
+  --color-danger: hsl(0 80% 60%);
+  --color-success: hsl(150 65% 55%);
+}
+
+/* Terminal */
+.term {
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Consolas,
+    "Liberation Mono",
+    monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre;
+  tab-size: 4;
+}
+.term-row {
+  padding: 1px 12px;
+}
+.term-row[data-stream="stderr"] {
+  color: hsl(0 70% 75%);
+}
+.term-row[data-stream="system"] {
+  color: hsl(199 95% 70%);
+  font-weight: 500;
+}
