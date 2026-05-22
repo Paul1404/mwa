@@ -1,0 +1,38 @@
+import type * as React from "react";
+import { cn } from "~/lib/utils";
+
+export const Card = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div
+    className={cn(
+      "rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-surface)] shadow-sm",
+      className,
+    )}
+    {...props}
+  />
+);
+
+export const CardHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={cn("flex flex-col gap-1.5 p-6 pb-3", className)} {...props} />
+);
+
+export const CardTitle = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={cn("text-lg font-semibold leading-none tracking-tight", className)} {...props} />
+);
+
+export const CardDescription = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={cn("text-sm text-[color:var(--color-muted)]", className)} {...props} />
+);
+
+export const CardContent = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={cn("p-6 pt-3", className)} {...props} />
+);
+
+export const CardFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div
+    className={cn(
+      "flex items-center gap-2 p-6 pt-3 border-t border-[color:var(--color-border)]",
+      className,
+    )}
+    {...props}
+  />
+);
