@@ -5,7 +5,7 @@ import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
 import { orpcQuery } from "~/lib/orpc";
 
-export const Route = createFileRoute("/_app/credentials")({
+export const Route = createFileRoute("/_app/credentials/")({
   component: CredentialsPage,
 });
 
