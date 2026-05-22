@@ -60,6 +60,13 @@ function EditCredentialPage() {
     },
   });
 
+  const clearHost = useMutation({
+    mutationFn: async () => orpc.credentials.clearHostKey({ id }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: orpcQuery.credentials.get.key({ input: { id } }) });
+    },
+  });
+
   if (cred.isLoading) return <p className="text-sm text-[color:var(--color-muted)]">Loading...</p>;
   if (cred.error)
     return (
@@ -139,6 +146,40 @@ function EditCredentialPage() {
                 </Button>
               </div>
               <p>The private key cannot be retrieved. You can only replace it.</p>
+            </div>
+
+            <div className="rounded-md border border-[color:var(--color-border)] bg-[color:var(--color-surface-2)] p-4 text-xs text-[color:var(--color-muted)]">
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <span className="min-w-0">
+                  Pinned host fingerprint:{" "}
+                  <span className="font-mono text-[color:var(--color-text)] break-all">
+                    {cred.data.hostFingerprint ?? "Not pinned. Will pin on next successful run."}
+                  </span>
+                </span>
+                {cred.data.hostFingerprint ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={clearHost.isPending}
+                    onClick={() => {
+                      if (
+                        confirm(
+                          "Clear the pinned host key? The next run will accept whatever key the server presents and re-pin it. Only do this if you know the host key legitimately changed.",
+                        )
+                      ) {
+                        clearHost.mutate();
+                      }
+                    }}
+                  >
+                    {clearHost.isPending ? "Clearing..." : "Clear pin"}
+                  </Button>
+                ) : null}
+              </div>
+              <p>
+                Captured the first time MWA successfully connects. Future runs refuse to proceed if
+                the server presents a different key.
+              </p>
             </div>
 
             {replaceKey ? (

@@ -1,6 +1,7 @@
 import { eventIterator, ORPCError, os } from "@orpc/server";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import * as v from "valibot";
+import { audit } from "../audit.server";
 import { encrypt, fingerprintKey } from "../crypto.server";
 import { db, schema } from "../db";
 import { executeRun, type RunLogEvent, runBroadcaster, runLock } from "../runner.server";
@@ -56,6 +57,7 @@ const CredentialSummary = v.object({
   port: v.number(),
   username: v.string(),
   publicKeyFingerprint: v.nullable(v.string()),
+  hostFingerprint: v.nullable(v.string()),
   createdAt: v.string(),
   updatedAt: v.string(),
 });
@@ -90,25 +92,26 @@ const LogEvent = v.object({
 // Credentials procedures
 // ---------------------------------------------------------------------------
 
+function serializeCredential(row: typeof schema.sshCredentials.$inferSelect) {
+  return {
+    id: row.id,
+    label: row.label,
+    host: row.host,
+    port: row.port,
+    username: row.username,
+    publicKeyFingerprint: row.publicKeyFingerprint,
+    hostFingerprint: row.hostFingerprint,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
 const listCredentials = authed.output(v.array(CredentialSummary)).handler(async () => {
   const rows = await db
-    .select({
-      id: schema.sshCredentials.id,
-      label: schema.sshCredentials.label,
-      host: schema.sshCredentials.host,
-      port: schema.sshCredentials.port,
-      username: schema.sshCredentials.username,
-      publicKeyFingerprint: schema.sshCredentials.publicKeyFingerprint,
-      createdAt: schema.sshCredentials.createdAt,
-      updatedAt: schema.sshCredentials.updatedAt,
-    })
+    .select()
     .from(schema.sshCredentials)
     .orderBy(desc(schema.sshCredentials.createdAt));
-  return rows.map((r) => ({
-    ...r,
-    createdAt: r.createdAt.toISOString(),
-    updatedAt: r.updatedAt.toISOString(),
-  }));
+  return rows.map(serializeCredential);
 });
 
 const getCredential = authed
@@ -119,16 +122,7 @@ const getCredential = authed
       where: eq(schema.sshCredentials.id, input.id),
     });
     if (!row) throw new ORPCError("NOT_FOUND", { message: "credential not found" });
-    return {
-      id: row.id,
-      label: row.label,
-      host: row.host,
-      port: row.port,
-      username: row.username,
-      publicKeyFingerprint: row.publicKeyFingerprint,
-      createdAt: row.createdAt.toISOString(),
-      updatedAt: row.updatedAt.toISOString(),
-    };
+    return serializeCredential(row);
   });
 
 const createCredential = authed
@@ -149,35 +143,51 @@ const createCredential = authed
       })
       .returning();
     if (!row) throw new ORPCError("INTERNAL_SERVER_ERROR");
-    return {
-      id: row.id,
-      label: row.label,
-      host: row.host,
-      port: row.port,
-      username: row.username,
-      publicKeyFingerprint: row.publicKeyFingerprint,
-      createdAt: row.createdAt.toISOString(),
-      updatedAt: row.updatedAt.toISOString(),
-    };
+    await audit({
+      userId: context.userId,
+      action: "credential.create",
+      targetType: "credential",
+      targetId: row.id,
+      metadata: { label: row.label, host: row.host, username: row.username },
+      headers: context.headers,
+    });
+    return serializeCredential(row);
   });
 
 const updateCredential = authed
   .input(UpdateCredentialInput)
   .output(CredentialSummary)
-  .handler(async ({ input }) => {
+  .handler(async ({ input, context }) => {
     const patch: Partial<typeof schema.sshCredentials.$inferInsert> = {
       updatedAt: new Date(),
     };
-    if (input.label !== undefined) patch.label = input.label;
-    if (input.host !== undefined) patch.host = input.host;
-    if (input.port !== undefined) patch.port = input.port;
-    if (input.username !== undefined) patch.username = input.username;
+    const changed: string[] = [];
+    if (input.label !== undefined) {
+      patch.label = input.label;
+      changed.push("label");
+    }
+    if (input.host !== undefined) {
+      patch.host = input.host;
+      // Host changes invalidate the pinned key. Re-pin on next connect.
+      patch.hostFingerprint = null;
+      changed.push("host");
+    }
+    if (input.port !== undefined) {
+      patch.port = input.port;
+      changed.push("port");
+    }
+    if (input.username !== undefined) {
+      patch.username = input.username;
+      changed.push("username");
+    }
     if (input.privateKey !== undefined) {
       patch.privateKeyEnc = encrypt(input.privateKey);
       patch.publicKeyFingerprint = fingerprintKey(input.privateKey);
+      changed.push("privateKey");
     }
     if (input.passphrase !== undefined) {
       patch.passphraseEnc = input.passphrase ? encrypt(input.passphrase) : null;
+      changed.push("passphrase");
     }
 
     const [row] = await db
@@ -186,22 +196,21 @@ const updateCredential = authed
       .where(eq(schema.sshCredentials.id, input.id))
       .returning();
     if (!row) throw new ORPCError("NOT_FOUND", { message: "credential not found" });
-    return {
-      id: row.id,
-      label: row.label,
-      host: row.host,
-      port: row.port,
-      username: row.username,
-      publicKeyFingerprint: row.publicKeyFingerprint,
-      createdAt: row.createdAt.toISOString(),
-      updatedAt: row.updatedAt.toISOString(),
-    };
+    await audit({
+      userId: context.userId,
+      action: "credential.update",
+      targetType: "credential",
+      targetId: row.id,
+      metadata: { changed },
+      headers: context.headers,
+    });
+    return serializeCredential(row);
   });
 
 const deleteCredential = authed
   .input(CredentialIdInput)
   .output(v.object({ ok: v.literal(true) }))
-  .handler(async ({ input }) => {
+  .handler(async ({ input, context }) => {
     if (runLock.active()) {
       const active = await db.query.updateRuns.findFirst({
         where: eq(schema.updateRuns.id, runLock.active()!),
@@ -212,8 +221,42 @@ const deleteCredential = authed
         });
       }
     }
+    const existing = await db.query.sshCredentials.findFirst({
+      where: eq(schema.sshCredentials.id, input.id),
+    });
     await db.delete(schema.sshCredentials).where(eq(schema.sshCredentials.id, input.id));
+    if (existing) {
+      await audit({
+        userId: context.userId,
+        action: "credential.delete",
+        targetType: "credential",
+        targetId: input.id,
+        metadata: { label: existing.label, host: existing.host },
+        headers: context.headers,
+      });
+    }
     return { ok: true as const };
+  });
+
+const clearHostKey = authed
+  .input(CredentialIdInput)
+  .output(CredentialSummary)
+  .handler(async ({ input, context }) => {
+    const [row] = await db
+      .update(schema.sshCredentials)
+      .set({ hostFingerprint: null, updatedAt: new Date() })
+      .where(eq(schema.sshCredentials.id, input.id))
+      .returning();
+    if (!row) throw new ORPCError("NOT_FOUND", { message: "credential not found" });
+    await audit({
+      userId: context.userId,
+      action: "credential.host_key.changed",
+      targetType: "credential",
+      targetId: row.id,
+      metadata: { reason: "manual_clear" },
+      headers: context.headers,
+    });
+    return serializeCredential(row);
   });
 
 // ---------------------------------------------------------------------------
@@ -337,6 +380,15 @@ const triggerRun = authed
       .returning();
     if (!run) throw new ORPCError("INTERNAL_SERVER_ERROR");
 
+    await audit({
+      userId: context.userId,
+      action: "run.start",
+      targetType: "run",
+      targetId: run.id,
+      metadata: { credentialId: cred.id, host: cred.host, label: cred.label },
+      headers: context.headers,
+    });
+
     // Fire and forget. Errors get persisted by executeRun itself.
     void executeRun(run.id, cred.id).catch((err) => {
       console.error("[runner] unhandled error", err);
@@ -348,8 +400,17 @@ const triggerRun = authed
 const cancelRun = authed
   .input(v.object({ id: v.pipe(v.string(), v.uuid()) }))
   .output(v.object({ canceled: v.boolean() }))
-  .handler(async ({ input }) => {
+  .handler(async ({ input, context }) => {
     const ok = runLock.cancel(input.id);
+    if (ok) {
+      await audit({
+        userId: context.userId,
+        action: "run.cancel",
+        targetType: "run",
+        targetId: input.id,
+        headers: context.headers,
+      });
+    }
     return { canceled: ok };
   });
 
@@ -440,6 +501,70 @@ const streamRun = authed
     }
   });
 
+const AuditEventOut = v.object({
+  id: v.string(),
+  userId: v.nullable(v.string()),
+  userEmail: v.nullable(v.string()),
+  action: v.string(),
+  targetType: v.nullable(v.string()),
+  targetId: v.nullable(v.string()),
+  metadata: v.nullable(v.record(v.string(), v.unknown())),
+  ipAddress: v.nullable(v.string()),
+  userAgent: v.nullable(v.string()),
+  at: v.string(),
+});
+
+const listAuditEvents = authed
+  .input(
+    v.object({
+      limit: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(200))),
+      targetType: v.optional(v.string()),
+      targetId: v.optional(v.string()),
+    }),
+  )
+  .output(v.array(AuditEventOut))
+  .handler(async ({ input }) => {
+    const rows = await db
+      .select({
+        id: schema.auditEvents.id,
+        userId: schema.auditEvents.userId,
+        userEmail: schema.users.email,
+        action: schema.auditEvents.action,
+        targetType: schema.auditEvents.targetType,
+        targetId: schema.auditEvents.targetId,
+        metadata: schema.auditEvents.metadata,
+        ipAddress: schema.auditEvents.ipAddress,
+        userAgent: schema.auditEvents.userAgent,
+        at: schema.auditEvents.at,
+      })
+      .from(schema.auditEvents)
+      .leftJoin(schema.users, eq(schema.users.id, schema.auditEvents.userId))
+      .where(
+        input.targetType
+          ? input.targetId
+            ? and(
+                eq(schema.auditEvents.targetType, input.targetType),
+                eq(schema.auditEvents.targetId, input.targetId),
+              )
+            : eq(schema.auditEvents.targetType, input.targetType)
+          : undefined,
+      )
+      .orderBy(desc(schema.auditEvents.at))
+      .limit(input.limit ?? 50);
+    return rows.map((r) => ({
+      id: r.id,
+      userId: r.userId,
+      userEmail: r.userEmail,
+      action: r.action,
+      targetType: r.targetType,
+      targetId: r.targetId,
+      metadata: (r.metadata as Record<string, unknown> | null) ?? null,
+      ipAddress: r.ipAddress,
+      userAgent: r.userAgent,
+      at: r.at.toISOString(),
+    }));
+  });
+
 export const appRouter = {
   credentials: {
     list: listCredentials,
@@ -447,6 +572,7 @@ export const appRouter = {
     create: createCredential,
     update: updateCredential,
     delete: deleteCredential,
+    clearHostKey: clearHostKey,
   },
   runs: {
     list: listRuns,
@@ -455,6 +581,9 @@ export const appRouter = {
     trigger: triggerRun,
     cancel: cancelRun,
     stream: streamRun,
+  },
+  audit: {
+    list: listAuditEvents,
   },
 };
 

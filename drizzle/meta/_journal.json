@@ -8,6 +8,13 @@
       "when": 1779488937992,
       "tag": "0000_shocking_jack_flag",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1779491361220,
+      "tag": "0001_chunky_red_hulk",
+      "breakpoints": true
     }
   ]
 }

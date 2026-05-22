@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { ClientChannel, ConnectConfig } from "ssh2";
 import { Client } from "ssh2";
 
@@ -7,7 +8,30 @@ export type SshTarget = {
   username: string;
   privateKey: string;
   passphrase?: string;
+  /**
+   * Pinned SHA-256 host fingerprint (OpenSSH-style: "SHA256:<base64>"). When
+   * present, the connection is rejected if the server's key hashes to anything
+   * else. When absent, the first connect captures the fingerprint and the
+   * caller is expected to persist it via the returned `hostFingerprint`.
+   */
+  expectedHostFingerprint?: string | null;
 };
+
+/** Compute the OpenSSH-style SHA-256 fingerprint of a raw host key. */
+export function opensshFingerprint(key: Buffer): string {
+  const hash = createHash("sha256").update(key).digest("base64").replace(/=+$/, "");
+  return `SHA256:${hash}`;
+}
+
+export class HostKeyMismatchError extends Error {
+  constructor(
+    readonly expected: string,
+    readonly actual: string,
+  ) {
+    super(`host key mismatch: expected ${expected}, got ${actual}`);
+    this.name = "HostKeyMismatchError";
+  }
+}
 
 export type StreamKind = "stdout" | "stderr";
 
@@ -124,10 +148,24 @@ export async function* execStream(
   }
 }
 
-/** Open an SSH connection. Caller is responsible for `client.end()`. */
-export function connect(target: SshTarget, signal?: AbortSignal): Promise<Client> {
+export type ConnectResult = {
+  client: Client;
+  /** The SHA-256 host fingerprint observed during the handshake. */
+  hostFingerprint: string;
+};
+
+/**
+ * Open an SSH connection. Verifies the server's host key against
+ * `target.expectedHostFingerprint` when one is pinned; otherwise captures the
+ * fingerprint TOFU and returns it so the caller can persist the pin.
+ * Caller is responsible for `client.end()`.
+ */
+export function connect(target: SshTarget, signal?: AbortSignal): Promise<ConnectResult> {
   return new Promise((res, rej) => {
     const client = new Client();
+    let observedFingerprint: string | null = null;
+    let mismatch: HostKeyMismatchError | null = null;
+
     const config: ConnectConfig = {
       host: target.host,
       port: target.port,
@@ -135,6 +173,15 @@ export function connect(target: SshTarget, signal?: AbortSignal): Promise<Client
       privateKey: target.privateKey,
       readyTimeout: 20_000,
       keepaliveInterval: 15_000,
+      hostVerifier: (key: Buffer) => {
+        const fp = opensshFingerprint(key);
+        observedFingerprint = fp;
+        if (target.expectedHostFingerprint && target.expectedHostFingerprint !== fp) {
+          mismatch = new HostKeyMismatchError(target.expectedHostFingerprint, fp);
+          return false;
+        }
+        return true;
+      },
     };
     if (target.passphrase) config.passphrase = target.passphrase;
     const onAbort = () => {
@@ -151,11 +198,17 @@ export function connect(target: SshTarget, signal?: AbortSignal): Promise<Client
     }
     client.on("ready", () => {
       if (signal) signal.removeEventListener("abort", onAbort);
-      res(client);
+      if (!observedFingerprint) {
+        rej(new Error("host key was not captured during handshake"));
+        return;
+      }
+      res({ client, hostFingerprint: observedFingerprint });
     });
     client.on("error", (err: Error) => {
       if (signal) signal.removeEventListener("abort", onAbort);
-      rej(err);
+      // hostVerifier returning false surfaces as a generic auth error; replace
+      // it with the more specific HostKeyMismatchError so callers can react.
+      rej(mismatch ?? err);
     });
     client.connect(config);
   });

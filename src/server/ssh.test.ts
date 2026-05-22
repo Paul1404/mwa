@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
-import { execStream } from "./ssh.server";
+import { execStream, opensshFingerprint } from "./ssh.server";
 
 // Build a minimal stub that quacks like an ssh2 Client + ClientChannel for
 // the parts execStream uses.
@@ -74,5 +74,22 @@ describe("ssh.execStream", () => {
     }
     expect(seen).toContainEqual({ stream: "stdout", line: "out1" });
     expect(seen).toContainEqual({ stream: "stderr", line: "err1" });
+  });
+});
+
+describe("opensshFingerprint", () => {
+  it("matches the OpenSSH SHA256 fingerprint format", () => {
+    // SHA-256 of "hello" is 2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824,
+    // which base64-encodes to "LPJNul+wow4m6DsqxbninhsWHlwfp0JecwQzYpOLmCQ=".
+    // Stripping the trailing "=" and prefixing with "SHA256:" gives the OpenSSH form.
+    const fp = opensshFingerprint(Buffer.from("hello", "utf8"));
+    expect(fp).toBe("SHA256:LPJNul+wow4m6DsqxbninhsWHlwfp0JecwQzYpOLmCQ");
+  });
+
+  it("returns a different fingerprint for different inputs", () => {
+    const a = opensshFingerprint(Buffer.from("key-A"));
+    const b = opensshFingerprint(Buffer.from("key-B"));
+    expect(a).not.toBe(b);
+    expect(a.startsWith("SHA256:")).toBe(true);
   });
 });
