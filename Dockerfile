@@ -36,12 +36,14 @@ COPY --from=builder   /app/dist         ./dist
 COPY --from=builder   /app/drizzle      ./drizzle
 COPY --from=builder   /app/server.ts    ./server.ts
 COPY --from=builder   /app/package.json ./package.json
-COPY --from=builder   /app/src/server/db/migrate.ts ./src/server/db/migrate.ts
-COPY --from=builder   /app/src/server/db/schema.ts  ./src/server/db/schema.ts
-COPY --from=builder   /app/src/server/db/index.ts   ./src/server/db/index.ts
+COPY --from=builder   /app/src/server/db/migrate.ts  ./src/server/db/migrate.ts
+COPY --from=builder   /app/src/server/db/schema.ts   ./src/server/db/schema.ts
+COPY --from=builder   /app/src/server/db/index.ts    ./src/server/db/index.ts
+COPY --from=builder   /app/src/server/crypto.server.ts ./src/server/crypto.server.ts
+COPY --from=builder   /app/src/server/boot-probe.ts  ./src/server/boot-probe.ts
 
 EXPOSE 3000
 ENV PORT=3000
 
 ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["sh", "-c", "bun run src/server/db/migrate.ts && bun run server.ts"]
+CMD ["sh", "-c", "bun run src/server/db/migrate.ts && bun run src/server/boot-probe.ts && bun run server.ts"]

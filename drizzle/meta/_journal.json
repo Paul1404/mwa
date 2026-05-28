@@ -15,6 +15,13 @@
       "when": 1779491361220,
       "tag": "0001_chunky_red_hulk",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1779550000000,
+      "tag": "0002_lonely_kang",
+      "breakpoints": true
     }
   ]
 }

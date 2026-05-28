@@ -100,6 +100,18 @@ export const sshCredentials = pgTable("ssh_credentials", {
     .references(() => users.id, { onDelete: "cascade" }),
 });
 
+// Single-row-per-key store for app-level state that needs to survive container
+// restarts. Currently holds the encryption canary (key = "encryption_canary"):
+// a known plaintext encrypted under the active ENCRYPTION_KEY. At boot we try
+// to decrypt it -- success means the key in env matches the one used last
+// time; failure means the key has changed and every stored credential is now
+// unreadable.
+export const systemMetadata = pgTable("system_metadata", {
+  key: varchar("key", { length: 64 }).primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const auditEvents = pgTable("audit_events", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: text("user_id").references(() => users.id, { onDelete: "set null" }),

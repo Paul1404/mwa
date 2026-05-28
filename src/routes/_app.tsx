@@ -1,5 +1,6 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { AppNav } from "~/components/nav";
+import { RekeyBanner } from "~/components/rekey-banner";
 import { getServerSession } from "~/lib/auth-session";
 
 export const Route = createFileRoute("/_app")({
@@ -18,6 +19,7 @@ function AppLayout() {
   return (
     <div className="min-h-dvh flex flex-col">
       <AppNav email={session?.email} />
+      <RekeyBanner />
       <main className="flex-1">
         <div className="mx-auto max-w-6xl px-6 py-8 w-full">
           <Outlet />

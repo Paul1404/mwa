@@ -18,6 +18,7 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:migrate:prod": "bun run src/server/db/migrate.ts",
+    "boot:probe": "bun run src/server/boot-probe.ts",
     "auth:generate": "better-auth generate",
     "icons:generate": "bun run scripts/generate-icons.ts"
   },
