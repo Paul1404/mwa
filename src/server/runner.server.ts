@@ -35,9 +35,12 @@ const STEPS: { id: RunStep; label: string; command: string }[] = [
   {
     id: "mailcow_update",
     // `--force` makes update.sh non-interactive and auto-confirms all prompts.
-    // `--gc` garbage-collects old image tags after the upgrade is in place.
+    // Do NOT add `--gc` here: mailcow's update.sh treats `--gc` as a standalone
+    // garbage-collect mode that EXITS immediately after cleaning images, so
+    // passing `--force --gc` skips the actual update. The next pipeline step
+    // (`docker system prune -a --force`) handles the cleanup instead.
     label: "Run Mailcow updater (non-interactive)",
-    command: "cd /opt/mailcow-dockerized && ./update.sh --force --gc",
+    command: "cd /opt/mailcow-dockerized && ./update.sh --force",
   },
   {
     id: "grafana_up",

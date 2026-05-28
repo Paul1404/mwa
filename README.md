@@ -8,10 +8,15 @@ The update pipeline is:
 
 ```
 cd /opt/mailcow-grafana   && docker compose down
-cd /opt/mailcow-dockerized && ./update.sh --force --gc
+cd /opt/mailcow-dockerized && ./update.sh --force
 cd /opt/mailcow-grafana   && docker compose up -d --pull always
 docker system prune -a --force
 ```
+
+Note: `--gc` is intentionally not passed to `update.sh`. Mailcow treats
+`--gc` as a standalone garbage-collect mode that exits without performing
+the update. The final `docker system prune -a --force` step handles
+cleanup of unused images.
 
 Only one run can be active at a time. Output is line-buffered and
 persisted, so you can leave the page and come back without losing logs.

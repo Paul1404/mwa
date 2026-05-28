@@ -99,6 +99,11 @@ export function isDecryptable(payload: string): boolean {
   }
 }
 
+// Fixed plaintext written into the canary row. Value doesn't matter -- only
+// whether the ciphertext round-trips successfully under the active key.
+export const CANARY_PLAINTEXT = "mwa-encryption-canary-v1";
+export const CANARY_KEY = "encryption_canary";
+
 /**
  * Compute the OpenSSH-style SHA256 fingerprint of a public key (or matching
  * private key whose `ssh-keygen -y` form is the public key). We can't parse
