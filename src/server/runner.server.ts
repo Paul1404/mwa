@@ -5,7 +5,7 @@ import { db, schema } from "./db";
 import type { UpdateRunStatus } from "./db/schema";
 import { type CommandEvent, connect, execStream, HostKeyMismatchError } from "./ssh.server";
 
-export type RunStep = "grafana_down" | "mailcow_update" | "grafana_up" | "docker_prune";
+export type RunStep = "mailcow_update" | "docker_prune";
 
 export type RunLogEvent =
   | {
@@ -28,11 +28,6 @@ export type RunLogEvent =
 
 const STEPS: { id: RunStep; label: string; command: string }[] = [
   {
-    id: "grafana_down",
-    label: "Stop Mailcow Grafana stack",
-    command: "cd /opt/mailcow-grafana && docker compose down",
-  },
-  {
     id: "mailcow_update",
     // `--force` makes update.sh non-interactive and auto-confirms all prompts.
     // Do NOT add `--gc` here: mailcow's update.sh treats `--gc` as a standalone
@@ -41,11 +36,6 @@ const STEPS: { id: RunStep; label: string; command: string }[] = [
     // (`docker system prune -a --force`) handles the cleanup instead.
     label: "Run Mailcow updater (non-interactive)",
     command: "cd /opt/mailcow-dockerized && ./update.sh --force",
-  },
-  {
-    id: "grafana_up",
-    label: "Start Mailcow Grafana stack",
-    command: "cd /opt/mailcow-grafana && docker compose up -d --pull always",
   },
   {
     id: "docker_prune",

@@ -7,9 +7,7 @@ the live terminal output back over an authenticated session.
 The update pipeline is:
 
 ```
-cd /opt/mailcow-grafana   && docker compose down
 cd /opt/mailcow-dockerized && ./update.sh --force
-cd /opt/mailcow-grafana   && docker compose up -d --pull always
 docker system prune -a --force
 ```
 
