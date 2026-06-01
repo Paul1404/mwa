@@ -22,7 +22,6 @@ const PREFLIGHT_SCRIPT = `
 echo "hostname=$(hostname 2>/dev/null || echo unknown)"
 echo "uname=$(uname -sr 2>/dev/null || echo unknown)"
 echo "mailcow_path=$(test -d /opt/mailcow-dockerized && echo yes || echo no)"
-echo "grafana_path=$(test -d /opt/mailcow-grafana && echo yes || echo no)"
 echo "mailcow_rev=$(cd /opt/mailcow-dockerized 2>/dev/null && git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 echo "mailcow_date=$(cd /opt/mailcow-dockerized 2>/dev/null && git log -1 --format=%cs 2>/dev/null || echo unknown)"
 echo "disk_root=$(df -P / 2>/dev/null | awk 'NR==2 {print $4 "|" $5}' || echo 'unknown|unknown')"
@@ -104,14 +103,6 @@ function buildChecks(raw: Record<string, string>): PreflightCheck[] {
     value: raw.mailcow_path === "yes" ? "/opt/mailcow-dockerized" : "not found",
     status: raw.mailcow_path === "yes" ? "ok" : "fail",
     detail: raw.mailcow_path === "yes" ? undefined : "the update step has nothing to update",
-  });
-
-  checks.push({
-    id: "grafana_path",
-    label: "Grafana stack",
-    value: raw.grafana_path === "yes" ? "/opt/mailcow-grafana" : "not found",
-    status: raw.grafana_path === "yes" ? "ok" : "fail",
-    detail: raw.grafana_path === "yes" ? undefined : "the down/up steps will fail",
   });
 
   if (raw.mailcow_rev && raw.mailcow_rev !== "unknown") {

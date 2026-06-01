@@ -2,19 +2,11 @@ import { CheckCircle2, ChevronRight, CircleX, Clock, Loader2 } from "lucide-reac
 import { useMemo, useState } from "react";
 import { Terminal, type TerminalLine } from "~/components/terminal";
 
-const STEP_ORDER = [
-  "init",
-  "grafana_down",
-  "mailcow_update",
-  "grafana_up",
-  "docker_prune",
-] as const;
+const STEP_ORDER = ["init", "mailcow_update", "docker_prune"] as const;
 
 const STEP_LABELS: Record<string, string> = {
   init: "Connect",
-  grafana_down: "Grafana down",
   mailcow_update: "Mailcow update",
-  grafana_up: "Grafana up",
   docker_prune: "Docker prune",
 };
 
