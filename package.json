@@ -23,9 +23,9 @@
     "icons:generate": "bun run scripts/generate-icons.ts"
   },
   "dependencies": {
-    "@orpc/client": "^1.14.3",
-    "@orpc/server": "^1.14.3",
-    "@orpc/tanstack-query": "^1.14.3",
+    "@orpc/client": "^1.14.6",
+    "@orpc/server": "^1.14.6",
+    "@orpc/tanstack-query": "^1.14.6",
     "@tanstack/react-form": "^1.32.0",
     "@tanstack/react-query": "^5.100.13",
     "@tanstack/react-router": "^1.168.10",
