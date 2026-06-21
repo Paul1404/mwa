@@ -55,7 +55,7 @@
     "@vitejs/plugin-react": "^6.0.2",
     "drizzle-kit": "^0.31.10",
     "sharp": "^0.35.1",
-    "tailwindcss": "^4.3.0",
+    "tailwindcss": "^4.3.1",
     "typescript": "^6.0.3",
     "vite": "^8.0.16",
     "vite-env-only": "^3.0.3",
