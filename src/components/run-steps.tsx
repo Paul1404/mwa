@@ -28,6 +28,8 @@ function computeSteps(
   lines: StepLine[],
   runStatus: string,
   etaByStep: Map<string, number>,
+  stepOrder: readonly string[],
+  stepLabels: Record<string, string>,
 ): StepInfo[] {
   const byStep = new Map<string, StepLine[]>();
   for (const l of lines) {
@@ -39,14 +41,14 @@ function computeSteps(
   // The current step is the latest one with any logs. Steps before it that
   // have logs are considered done; steps after it are pending.
   let lastStepWithLogs = -1;
-  STEP_ORDER.forEach((id, i) => {
+  stepOrder.forEach((id, i) => {
     if ((byStep.get(id)?.length ?? 0) > 0) lastStepWithLogs = i;
   });
 
   const runDone = runStatus === "success" || runStatus === "failed" || runStatus === "canceled";
   const runFailed = runStatus === "failed" || runStatus === "canceled";
 
-  return STEP_ORDER.map((id, i) => {
+  return stepOrder.map((id, i) => {
     const stepLines = byStep.get(id) ?? [];
     const hasLogs = stepLines.length > 0;
     const isLast = i === lastStepWithLogs;
@@ -74,7 +76,7 @@ function computeSteps(
 
     return {
       id,
-      label: STEP_LABELS[id] ?? id,
+      label: stepLabels[id] ?? id,
       lines: stepLines,
       state,
       startedAt,
@@ -162,14 +164,21 @@ export function RunSteps({
   runStatus,
   stepEtaMs,
   now,
+  stepOrder = STEP_ORDER,
+  stepLabels = STEP_LABELS,
 }: {
   lines: StepLine[];
   runStatus: string;
   stepEtaMs?: Record<string, number>;
   now: number;
+  stepOrder?: readonly string[];
+  stepLabels?: Record<string, string>;
 }) {
   const etaMap = useMemo(() => new Map(Object.entries(stepEtaMs ?? {})), [stepEtaMs]);
-  const steps = useMemo(() => computeSteps(lines, runStatus, etaMap), [lines, runStatus, etaMap]);
+  const steps = useMemo(
+    () => computeSteps(lines, runStatus, etaMap, stepOrder, stepLabels),
+    [lines, runStatus, etaMap, stepOrder, stepLabels],
+  );
 
   // Expand the current step by default; collapse done ones.
   const [explicitExpanded, setExplicitExpanded] = useState<Record<string, boolean>>({});

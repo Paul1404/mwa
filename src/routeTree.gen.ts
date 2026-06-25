@@ -16,10 +16,14 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiHealthRouteImport } from './routes/api.health'
 import { Route as AppDashboardRouteImport } from './routes/_app.dashboard'
 import { Route as AppAuditRouteImport } from './routes/_app.audit'
+import { Route as AppDomainsIndexRouteImport } from './routes/_app.domains.index'
 import { Route as AppCredentialsIndexRouteImport } from './routes/_app.credentials.index'
 import { Route as ApiRpcSplatRouteImport } from './routes/api.rpc.$'
 import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
 import { Route as AppRunsRunIdRouteImport } from './routes/_app.runs.$runId'
+import { Route as AppDomainsNewRouteImport } from './routes/_app.domains.new'
+import { Route as AppDomainRunsRunIdRouteImport } from './routes/_app.domain-runs.$runId'
+import { Route as AppDomainPlansPlanIdRouteImport } from './routes/_app.domain-plans.$planId'
 import { Route as AppCredentialsNewRouteImport } from './routes/_app.credentials.new'
 import { Route as AppCredentialsIdRouteImport } from './routes/_app.credentials.$id'
 
@@ -57,6 +61,11 @@ const AppAuditRoute = AppAuditRouteImport.update({
   path: '/audit',
   getParentRoute: () => AppRoute,
 } as any)
+const AppDomainsIndexRoute = AppDomainsIndexRouteImport.update({
+  id: '/domains/',
+  path: '/domains/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppCredentialsIndexRoute = AppCredentialsIndexRouteImport.update({
   id: '/credentials/',
   path: '/credentials/',
@@ -75,6 +84,21 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 const AppRunsRunIdRoute = AppRunsRunIdRouteImport.update({
   id: '/runs/$runId',
   path: '/runs/$runId',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppDomainsNewRoute = AppDomainsNewRouteImport.update({
+  id: '/domains/new',
+  path: '/domains/new',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppDomainRunsRunIdRoute = AppDomainRunsRunIdRouteImport.update({
+  id: '/domain-runs/$runId',
+  path: '/domain-runs/$runId',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppDomainPlansPlanIdRoute = AppDomainPlansPlanIdRouteImport.update({
+  id: '/domain-plans/$planId',
+  path: '/domain-plans/$planId',
   getParentRoute: () => AppRoute,
 } as any)
 const AppCredentialsNewRoute = AppCredentialsNewRouteImport.update({
@@ -97,10 +121,14 @@ export interface FileRoutesByFullPath {
   '/api/health': typeof ApiHealthRoute
   '/credentials/$id': typeof AppCredentialsIdRoute
   '/credentials/new': typeof AppCredentialsNewRoute
+  '/domain-plans/$planId': typeof AppDomainPlansPlanIdRoute
+  '/domain-runs/$runId': typeof AppDomainRunsRunIdRoute
+  '/domains/new': typeof AppDomainsNewRoute
   '/runs/$runId': typeof AppRunsRunIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
   '/credentials/': typeof AppCredentialsIndexRoute
+  '/domains/': typeof AppDomainsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -111,10 +139,14 @@ export interface FileRoutesByTo {
   '/api/health': typeof ApiHealthRoute
   '/credentials/$id': typeof AppCredentialsIdRoute
   '/credentials/new': typeof AppCredentialsNewRoute
+  '/domain-plans/$planId': typeof AppDomainPlansPlanIdRoute
+  '/domain-runs/$runId': typeof AppDomainRunsRunIdRoute
+  '/domains/new': typeof AppDomainsNewRoute
   '/runs/$runId': typeof AppRunsRunIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
   '/credentials': typeof AppCredentialsIndexRoute
+  '/domains': typeof AppDomainsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -127,10 +159,14 @@ export interface FileRoutesById {
   '/api/health': typeof ApiHealthRoute
   '/_app/credentials/$id': typeof AppCredentialsIdRoute
   '/_app/credentials/new': typeof AppCredentialsNewRoute
+  '/_app/domain-plans/$planId': typeof AppDomainPlansPlanIdRoute
+  '/_app/domain-runs/$runId': typeof AppDomainRunsRunIdRoute
+  '/_app/domains/new': typeof AppDomainsNewRoute
   '/_app/runs/$runId': typeof AppRunsRunIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
   '/_app/credentials/': typeof AppCredentialsIndexRoute
+  '/_app/domains/': typeof AppDomainsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -143,10 +179,14 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/credentials/$id'
     | '/credentials/new'
+    | '/domain-plans/$planId'
+    | '/domain-runs/$runId'
+    | '/domains/new'
     | '/runs/$runId'
     | '/api/auth/$'
     | '/api/rpc/$'
     | '/credentials/'
+    | '/domains/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -157,10 +197,14 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/credentials/$id'
     | '/credentials/new'
+    | '/domain-plans/$planId'
+    | '/domain-runs/$runId'
+    | '/domains/new'
     | '/runs/$runId'
     | '/api/auth/$'
     | '/api/rpc/$'
     | '/credentials'
+    | '/domains'
   id:
     | '__root__'
     | '/'
@@ -172,10 +216,14 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/_app/credentials/$id'
     | '/_app/credentials/new'
+    | '/_app/domain-plans/$planId'
+    | '/_app/domain-runs/$runId'
+    | '/_app/domains/new'
     | '/_app/runs/$runId'
     | '/api/auth/$'
     | '/api/rpc/$'
     | '/_app/credentials/'
+    | '/_app/domains/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -239,6 +287,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAuditRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/domains/': {
+      id: '/_app/domains/'
+      path: '/domains'
+      fullPath: '/domains/'
+      preLoaderRoute: typeof AppDomainsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/credentials/': {
       id: '/_app/credentials/'
       path: '/credentials'
@@ -267,6 +322,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppRunsRunIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/domains/new': {
+      id: '/_app/domains/new'
+      path: '/domains/new'
+      fullPath: '/domains/new'
+      preLoaderRoute: typeof AppDomainsNewRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/domain-runs/$runId': {
+      id: '/_app/domain-runs/$runId'
+      path: '/domain-runs/$runId'
+      fullPath: '/domain-runs/$runId'
+      preLoaderRoute: typeof AppDomainRunsRunIdRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/domain-plans/$planId': {
+      id: '/_app/domain-plans/$planId'
+      path: '/domain-plans/$planId'
+      fullPath: '/domain-plans/$planId'
+      preLoaderRoute: typeof AppDomainPlansPlanIdRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/credentials/new': {
       id: '/_app/credentials/new'
       path: '/credentials/new'
@@ -289,8 +365,12 @@ interface AppRouteChildren {
   AppDashboardRoute: typeof AppDashboardRoute
   AppCredentialsIdRoute: typeof AppCredentialsIdRoute
   AppCredentialsNewRoute: typeof AppCredentialsNewRoute
+  AppDomainPlansPlanIdRoute: typeof AppDomainPlansPlanIdRoute
+  AppDomainRunsRunIdRoute: typeof AppDomainRunsRunIdRoute
+  AppDomainsNewRoute: typeof AppDomainsNewRoute
   AppRunsRunIdRoute: typeof AppRunsRunIdRoute
   AppCredentialsIndexRoute: typeof AppCredentialsIndexRoute
+  AppDomainsIndexRoute: typeof AppDomainsIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -298,8 +378,12 @@ const AppRouteChildren: AppRouteChildren = {
   AppDashboardRoute: AppDashboardRoute,
   AppCredentialsIdRoute: AppCredentialsIdRoute,
   AppCredentialsNewRoute: AppCredentialsNewRoute,
+  AppDomainPlansPlanIdRoute: AppDomainPlansPlanIdRoute,
+  AppDomainRunsRunIdRoute: AppDomainRunsRunIdRoute,
+  AppDomainsNewRoute: AppDomainsNewRoute,
   AppRunsRunIdRoute: AppRunsRunIdRoute,
   AppCredentialsIndexRoute: AppCredentialsIndexRoute,
+  AppDomainsIndexRoute: AppDomainsIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

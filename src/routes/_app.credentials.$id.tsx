@@ -33,6 +33,11 @@ function EditCredentialPage() {
   const [privateKey, setPrivateKey] = useState("");
   const [passphrase, setPassphrase] = useState("");
   const [replaceKey, setReplaceKey] = useState(search.replaceKey === 1);
+  const [mailcowApiUrl, setMailcowApiUrl] = useState("");
+  const [mailcowApiKey, setMailcowApiKey] = useState("");
+  const [mailHostname, setMailHostname] = useState("");
+  const [abuseMailbox, setAbuseMailbox] = useState("");
+  const [tlsaValue, setTlsaValue] = useState("");
 
   useEffect(() => {
     if (cred.data) {
@@ -40,6 +45,10 @@ function EditCredentialPage() {
       setHost(cred.data.host);
       setPort(cred.data.port);
       setUsername(cred.data.username);
+      setMailcowApiUrl(cred.data.mailcowApiUrl ?? "");
+      setMailHostname(cred.data.mailHostname ?? "");
+      setAbuseMailbox(cred.data.abuseMailbox ?? "");
+      setTlsaValue(cred.data.tlsaValue ?? "");
     }
   }, [cred.data]);
 
@@ -59,6 +68,11 @@ function EditCredentialPage() {
         username,
         privateKey: replaceKey ? privateKey : undefined,
         passphrase: replaceKey ? passphrase || "" : undefined,
+        mailcowApiUrl,
+        mailcowApiKey: mailcowApiKey || undefined,
+        mailHostname,
+        abuseMailbox,
+        tlsaValue,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: orpcQuery.credentials.list.key() });
@@ -236,6 +250,64 @@ function EditCredentialPage() {
                 </div>
               </>
             ) : null}
+
+            <div className="rounded-md border border-[color:var(--color-border)] p-4 flex flex-col gap-4">
+              <div>
+                <div className="text-sm font-medium">Domain provisioning</div>
+                <div className="text-xs text-[color:var(--color-muted)] mt-0.5">
+                  mailcow API and DNS defaults used when onboarding domains.
+                </div>
+              </div>
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="mailcowApiUrl">mailcow API URL</Label>
+                  <Input
+                    id="mailcowApiUrl"
+                    value={mailcowApiUrl}
+                    onChange={(e) => setMailcowApiUrl(e.target.value)}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="mailcowApiKey">Replace mailcow API key</Label>
+                  <Input
+                    id="mailcowApiKey"
+                    type="password"
+                    value={mailcowApiKey}
+                    onChange={(e) => setMailcowApiKey(e.target.value)}
+                    placeholder="leave empty to keep existing"
+                  />
+                </div>
+              </div>
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="mailHostname">Mail hostname</Label>
+                  <Input
+                    id="mailHostname"
+                    value={mailHostname}
+                    onChange={(e) => setMailHostname(e.target.value)}
+                    placeholder="mail.pdcd.net"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="abuseMailbox">Report mailbox</Label>
+                  <Input
+                    id="abuseMailbox"
+                    value={abuseMailbox}
+                    onChange={(e) => setAbuseMailbox(e.target.value)}
+                    placeholder="abuse@pdcd.net"
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="tlsaValue">TLSA value (optional)</Label>
+                <Textarea
+                  id="tlsaValue"
+                  rows={2}
+                  value={tlsaValue}
+                  onChange={(e) => setTlsaValue(e.target.value)}
+                />
+              </div>
+            </div>
 
             {update.error ? (
               <p className="text-sm text-[color:var(--color-danger)]">

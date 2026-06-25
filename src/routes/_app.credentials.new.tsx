@@ -20,6 +20,11 @@ function NewCredentialPage() {
   const [username, setUsername] = useState("root");
   const [privateKey, setPrivateKey] = useState("");
   const [passphrase, setPassphrase] = useState("");
+  const [mailcowApiUrl, setMailcowApiUrl] = useState("");
+  const [mailcowApiKey, setMailcowApiKey] = useState("");
+  const [mailHostname, setMailHostname] = useState("mail.pdcd.net");
+  const [abuseMailbox, setAbuseMailbox] = useState("abuse@pdcd.net");
+  const [tlsaValue, setTlsaValue] = useState("");
 
   const mut = useMutation({
     mutationFn: async () =>
@@ -30,6 +35,11 @@ function NewCredentialPage() {
         username,
         privateKey,
         passphrase: passphrase || undefined,
+        mailcowApiUrl: mailcowApiUrl || undefined,
+        mailcowApiKey: mailcowApiKey || undefined,
+        mailHostname: mailHostname || undefined,
+        abuseMailbox: abuseMailbox || undefined,
+        tlsaValue: tlsaValue || undefined,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: orpcQuery.credentials.list.key() });
@@ -123,6 +133,62 @@ function NewCredentialPage() {
                 onChange={(e) => setPassphrase(e.target.value)}
                 autoComplete="off"
               />
+            </div>
+
+            <div className="rounded-md border border-[color:var(--color-border)] p-4 flex flex-col gap-4">
+              <div>
+                <div className="text-sm font-medium">Domain provisioning</div>
+                <div className="text-xs text-[color:var(--color-muted)] mt-0.5">
+                  Optional for updates, required when this MTA provisions domains.
+                </div>
+              </div>
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="mailcowApiUrl">mailcow API URL</Label>
+                  <Input
+                    id="mailcowApiUrl"
+                    value={mailcowApiUrl}
+                    onChange={(e) => setMailcowApiUrl(e.target.value)}
+                    placeholder="https://mail.pdcd.net"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="mailcowApiKey">mailcow API key</Label>
+                  <Input
+                    id="mailcowApiKey"
+                    type="password"
+                    value={mailcowApiKey}
+                    onChange={(e) => setMailcowApiKey(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="mailHostname">Mail hostname</Label>
+                  <Input
+                    id="mailHostname"
+                    value={mailHostname}
+                    onChange={(e) => setMailHostname(e.target.value)}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="abuseMailbox">Report mailbox</Label>
+                  <Input
+                    id="abuseMailbox"
+                    value={abuseMailbox}
+                    onChange={(e) => setAbuseMailbox(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="tlsaValue">TLSA value (optional)</Label>
+                <Textarea
+                  id="tlsaValue"
+                  rows={2}
+                  value={tlsaValue}
+                  onChange={(e) => setTlsaValue(e.target.value)}
+                />
+              </div>
             </div>
 
             {mut.error ? (

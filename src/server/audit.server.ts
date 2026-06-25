@@ -8,9 +8,28 @@ export type AuditAction =
   | "credential.host_key.changed"
   | "run.start"
   | "run.cancel"
-  | "run.complete";
+  | "run.complete"
+  | "provider.create"
+  | "provider.update"
+  | "provider.delete"
+  | "provider.test"
+  | "domain.plan.create"
+  | "domain.plan.apply"
+  | "domain.run.cancel"
+  | "domain.run.complete"
+  | "domain.dkim.delete"
+  | "domain.mailcow.create"
+  | "domain.dns.change"
+  | "domain.ses.identity.create"
+  | "domain.ses.mail_from.update";
 
-export type AuditTargetType = "credential" | "run";
+export type AuditTargetType =
+  | "credential"
+  | "run"
+  | "provider"
+  | "domain"
+  | "domain_plan"
+  | "domain_run";
 
 export type AuditInput = {
   userId: string | null;

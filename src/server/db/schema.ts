@@ -93,6 +93,11 @@ export const sshCredentials = pgTable("ssh_credentials", {
   // "SHA256:<base64>"). Captured TOFU on first successful connect; later
   // connects compare against this value and refuse on mismatch.
   hostFingerprint: varchar("host_fingerprint", { length: 80 }),
+  mailcowApiUrl: varchar("mailcow_api_url", { length: 255 }),
+  mailcowApiKeyEnc: text("mailcow_api_key_enc"),
+  mailHostname: varchar("mail_hostname", { length: 255 }),
+  abuseMailbox: varchar("abuse_mailbox", { length: 255 }),
+  tlsaValue: text("tlsa_value"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   createdBy: text("created_by")
@@ -160,6 +165,112 @@ export const updateRunLogs = pgTable("update_run_logs", {
     .default(sql`now()`),
 });
 
+export const providerKinds = ["dns.route53", "identity.ses"] as const;
+export type ProviderKind = (typeof providerKinds)[number];
+
+export const providerCredentials = pgTable("provider_credentials", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  kind: varchar("kind", { length: 32 }).notNull().$type<ProviderKind>(),
+  label: varchar("label", { length: 100 }).notNull(),
+  config: jsonb("config").notNull().default({}),
+  secretEnc: text("secret_enc").notNull(),
+  createdBy: text("created_by")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const domainStatus = [
+  "planned",
+  "provisioning",
+  "active",
+  "failed",
+  "drift_detected",
+] as const;
+export type DomainStatus = (typeof domainStatus)[number];
+
+export const domains = pgTable("domains", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  domain: varchar("domain", { length: 255 }).notNull().unique(),
+  mtaCredentialId: uuid("mta_credential_id")
+    .notNull()
+    .references(() => sshCredentials.id, { onDelete: "cascade" }),
+  dnsProviderCredentialId: uuid("dns_provider_credential_id")
+    .notNull()
+    .references(() => providerCredentials.id, { onDelete: "restrict" }),
+  identityProviderCredentialId: uuid("identity_provider_credential_id").references(
+    () => providerCredentials.id,
+    { onDelete: "set null" },
+  ),
+  status: varchar("status", { length: 32 }).notNull().$type<DomainStatus>().default("planned"),
+  lastPlanId: uuid("last_plan_id"),
+  lastRunId: uuid("last_run_id"),
+  createdBy: text("created_by")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const domainPlanStatus = ["draft", "applied", "stale"] as const;
+export type DomainPlanStatus = (typeof domainPlanStatus)[number];
+
+export const domainPlans = pgTable("domain_plans", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  domain: varchar("domain", { length: 255 }).notNull(),
+  mtaCredentialId: uuid("mta_credential_id")
+    .notNull()
+    .references(() => sshCredentials.id, { onDelete: "cascade" }),
+  dnsProviderCredentialId: uuid("dns_provider_credential_id")
+    .notNull()
+    .references(() => providerCredentials.id, { onDelete: "restrict" }),
+  identityProviderCredentialId: uuid("identity_provider_credential_id").references(
+    () => providerCredentials.id,
+    { onDelete: "set null" },
+  ),
+  status: varchar("status", { length: 32 }).notNull().$type<DomainPlanStatus>().default("draft"),
+  desiredState: jsonb("desired_state").notNull(),
+  observedState: jsonb("observed_state").notNull(),
+  changes: jsonb("changes").notNull(),
+  warnings: jsonb("warnings").notNull(),
+  blockers: jsonb("blockers").notNull(),
+  createdBy: text("created_by")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const domainRunStatus = ["pending", "running", "success", "failed", "canceled"] as const;
+export type DomainRunStatus = (typeof domainRunStatus)[number];
+
+export const domainRuns = pgTable("domain_runs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  planId: uuid("plan_id").references(() => domainPlans.id, { onDelete: "set null" }),
+  domain: varchar("domain", { length: 255 }).notNull(),
+  triggeredBy: text("triggered_by")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  status: varchar("status", { length: 16 }).notNull().$type<DomainRunStatus>().default("pending"),
+  errorMessage: text("error_message"),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+});
+
+export const domainRunLogs = pgTable("domain_run_logs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  runId: uuid("run_id")
+    .notNull()
+    .references(() => domainRuns.id, { onDelete: "cascade" }),
+  seq: integer("seq").notNull(),
+  stream: varchar("stream", { length: 8 }).notNull(),
+  step: varchar("step", { length: 32 }).notNull(),
+  line: text("line").notNull(),
+  emittedAt: timestamp("emitted_at", { withTimezone: true, mode: "string" })
+    .notNull()
+    .default(sql`now()`),
+});
+
 export const credentialsRelations = relations(sshCredentials, ({ many, one }) => ({
   runs: many(updateRuns),
   owner: one(users, {
@@ -184,5 +295,62 @@ export const runLogRelations = relations(updateRunLogs, ({ one }) => ({
   run: one(updateRuns, {
     fields: [updateRunLogs.runId],
     references: [updateRuns.id],
+  }),
+}));
+
+export const providerCredentialRelations = relations(providerCredentials, ({ one }) => ({
+  owner: one(users, {
+    fields: [providerCredentials.createdBy],
+    references: [users.id],
+  }),
+}));
+
+export const domainRelations = relations(domains, ({ one }) => ({
+  mtaCredential: one(sshCredentials, {
+    fields: [domains.mtaCredentialId],
+    references: [sshCredentials.id],
+  }),
+  dnsProvider: one(providerCredentials, {
+    fields: [domains.dnsProviderCredentialId],
+    references: [providerCredentials.id],
+  }),
+  identityProvider: one(providerCredentials, {
+    fields: [domains.identityProviderCredentialId],
+    references: [providerCredentials.id],
+  }),
+}));
+
+export const domainPlanRelations = relations(domainPlans, ({ one, many }) => ({
+  mtaCredential: one(sshCredentials, {
+    fields: [domainPlans.mtaCredentialId],
+    references: [sshCredentials.id],
+  }),
+  dnsProvider: one(providerCredentials, {
+    fields: [domainPlans.dnsProviderCredentialId],
+    references: [providerCredentials.id],
+  }),
+  identityProvider: one(providerCredentials, {
+    fields: [domainPlans.identityProviderCredentialId],
+    references: [providerCredentials.id],
+  }),
+  runs: many(domainRuns),
+}));
+
+export const domainRunRelations = relations(domainRuns, ({ one, many }) => ({
+  plan: one(domainPlans, {
+    fields: [domainRuns.planId],
+    references: [domainPlans.id],
+  }),
+  triggeredByUser: one(users, {
+    fields: [domainRuns.triggeredBy],
+    references: [users.id],
+  }),
+  logs: many(domainRunLogs),
+}));
+
+export const domainRunLogRelations = relations(domainRunLogs, ({ one }) => ({
+  run: one(domainRuns, {
+    fields: [domainRunLogs.runId],
+    references: [domainRuns.id],
   }),
 }));

@@ -5,6 +5,14 @@ import { audit } from "../audit.server";
 import { CredentialDecryptError, encrypt, fingerprintKey, isDecryptable } from "../crypto.server";
 import { db, schema } from "../db";
 import { runPreflight } from "../preflight.server";
+import {
+  type DomainRunLogEvent,
+  domainRunBroadcaster,
+  domainRunLock,
+  executeDomainRun,
+} from "../provisioning/domain-runner.server";
+import { buildDomainPlan } from "../provisioning/planner.server";
+import { createDnsProvider, createIdentityProvider } from "../provisioning/provider-factory.server";
 import { executeRun, type RunLogEvent, runBroadcaster, runLock } from "../runner.server";
 import { HostKeyMismatchError } from "../ssh.server";
 import type { OrpcContext } from "./context.server";
@@ -40,6 +48,11 @@ const CreateCredentialInput = v.object({
     ),
   ),
   passphrase: v.optional(v.string()),
+  mailcowApiUrl: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(255))),
+  mailcowApiKey: v.optional(v.string()),
+  mailHostname: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(255))),
+  abuseMailbox: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(255))),
+  tlsaValue: v.optional(v.string()),
 });
 
 const UpdateCredentialInput = v.object({
@@ -50,6 +63,11 @@ const UpdateCredentialInput = v.object({
   username: v.optional(v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(64))),
   privateKey: v.optional(v.pipe(v.string(), v.minLength(50))),
   passphrase: v.optional(v.string()),
+  mailcowApiUrl: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(255))),
+  mailcowApiKey: v.optional(v.string()),
+  mailHostname: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(255))),
+  abuseMailbox: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(255))),
+  tlsaValue: v.optional(v.string()),
 });
 
 const CredentialSummary = v.object({
@@ -61,6 +79,10 @@ const CredentialSummary = v.object({
   publicKeyFingerprint: v.nullable(v.string()),
   hostFingerprint: v.nullable(v.string()),
   needsRekey: v.boolean(),
+  mailcowApiUrl: v.nullable(v.string()),
+  mailHostname: v.nullable(v.string()),
+  abuseMailbox: v.nullable(v.string()),
+  tlsaValue: v.nullable(v.string()),
   createdAt: v.string(),
   updatedAt: v.string(),
 });
@@ -108,6 +130,10 @@ function serializeCredential(row: typeof schema.sshCredentials.$inferSelect) {
     // matches the one used at write time. The UI uses this to nudge users to
     // re-key without making them click "Plan update" first.
     needsRekey: !isDecryptable(row.privateKeyEnc),
+    mailcowApiUrl: row.mailcowApiUrl,
+    mailHostname: row.mailHostname,
+    abuseMailbox: row.abuseMailbox,
+    tlsaValue: row.tlsaValue,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -145,6 +171,11 @@ const createCredential = authed
         username: input.username,
         privateKeyEnc: encrypt(input.privateKey),
         passphraseEnc: input.passphrase ? encrypt(input.passphrase) : null,
+        mailcowApiUrl: input.mailcowApiUrl || null,
+        mailcowApiKeyEnc: input.mailcowApiKey ? encrypt(input.mailcowApiKey) : null,
+        mailHostname: input.mailHostname || null,
+        abuseMailbox: input.abuseMailbox || null,
+        tlsaValue: input.tlsaValue || null,
         publicKeyFingerprint: fingerprintKey(input.privateKey),
         createdBy: context.userId!,
       })
@@ -195,6 +226,26 @@ const updateCredential = authed
     if (input.passphrase !== undefined) {
       patch.passphraseEnc = input.passphrase ? encrypt(input.passphrase) : null;
       changed.push("passphrase");
+    }
+    if (input.mailcowApiUrl !== undefined) {
+      patch.mailcowApiUrl = input.mailcowApiUrl || null;
+      changed.push("mailcowApiUrl");
+    }
+    if (input.mailcowApiKey !== undefined) {
+      patch.mailcowApiKeyEnc = input.mailcowApiKey ? encrypt(input.mailcowApiKey) : null;
+      changed.push("mailcowApiKey");
+    }
+    if (input.mailHostname !== undefined) {
+      patch.mailHostname = input.mailHostname || null;
+      changed.push("mailHostname");
+    }
+    if (input.abuseMailbox !== undefined) {
+      patch.abuseMailbox = input.abuseMailbox || null;
+      changed.push("abuseMailbox");
+    }
+    if (input.tlsaValue !== undefined) {
+      patch.tlsaValue = input.tlsaValue || null;
+      changed.push("tlsaValue");
     }
 
     const [row] = await db
@@ -648,6 +699,475 @@ const streamRun = authed
     }
   });
 
+const ProviderSummary = v.object({
+  id: v.string(),
+  kind: v.string(),
+  label: v.string(),
+  config: v.record(v.string(), v.unknown()),
+  createdAt: v.string(),
+  updatedAt: v.string(),
+});
+
+const ProviderInput = v.object({
+  kind: v.union([v.literal("dns.route53"), v.literal("identity.ses")]),
+  label: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100)),
+  config: v.optional(v.record(v.string(), v.unknown())),
+  accessKeyId: v.pipe(v.string(), v.trim(), v.minLength(1)),
+  secretAccessKey: v.pipe(v.string(), v.minLength(1)),
+  sessionToken: v.optional(v.string()),
+});
+
+const ProviderUpdateInput = v.object({
+  id: v.pipe(v.string(), v.uuid()),
+  label: v.optional(v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100))),
+  config: v.optional(v.record(v.string(), v.unknown())),
+  accessKeyId: v.optional(v.pipe(v.string(), v.trim(), v.minLength(1))),
+  secretAccessKey: v.optional(v.pipe(v.string(), v.minLength(1))),
+  sessionToken: v.optional(v.string()),
+});
+
+function serializeProvider(row: typeof schema.providerCredentials.$inferSelect) {
+  return {
+    id: row.id,
+    kind: row.kind,
+    label: row.label,
+    config: (row.config as Record<string, unknown>) ?? {},
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+const listProviders = authed.output(v.array(ProviderSummary)).handler(async () => {
+  const rows = await db
+    .select()
+    .from(schema.providerCredentials)
+    .orderBy(desc(schema.providerCredentials.createdAt));
+  return rows.map(serializeProvider);
+});
+
+const createProvider = authed
+  .input(ProviderInput)
+  .output(ProviderSummary)
+  .handler(async ({ input, context }) => {
+    const [row] = await db
+      .insert(schema.providerCredentials)
+      .values({
+        kind: input.kind,
+        label: input.label,
+        config: input.config ?? {},
+        secretEnc: encrypt(
+          JSON.stringify({
+            accessKeyId: input.accessKeyId,
+            secretAccessKey: input.secretAccessKey,
+            sessionToken: input.sessionToken || null,
+          }),
+        ),
+        createdBy: context.userId!,
+      })
+      .returning();
+    if (!row) throw new ORPCError("INTERNAL_SERVER_ERROR");
+    await audit({
+      userId: context.userId,
+      action: "provider.create",
+      targetType: "provider",
+      targetId: row.id,
+      metadata: { kind: row.kind, label: row.label },
+      headers: context.headers,
+    });
+    return serializeProvider(row);
+  });
+
+const updateProvider = authed
+  .input(ProviderUpdateInput)
+  .output(ProviderSummary)
+  .handler(async ({ input, context }) => {
+    const patch: Partial<typeof schema.providerCredentials.$inferInsert> = {
+      updatedAt: new Date(),
+    };
+    if (input.label !== undefined) patch.label = input.label;
+    if (input.config !== undefined) patch.config = input.config;
+    if (input.accessKeyId && input.secretAccessKey) {
+      patch.secretEnc = encrypt(
+        JSON.stringify({
+          accessKeyId: input.accessKeyId,
+          secretAccessKey: input.secretAccessKey,
+          sessionToken: input.sessionToken || null,
+        }),
+      );
+    }
+    const [row] = await db
+      .update(schema.providerCredentials)
+      .set(patch)
+      .where(eq(schema.providerCredentials.id, input.id))
+      .returning();
+    if (!row) throw new ORPCError("NOT_FOUND");
+    await audit({
+      userId: context.userId,
+      action: "provider.update",
+      targetType: "provider",
+      targetId: row.id,
+      metadata: { changed: Object.keys(patch).filter((k) => k !== "secretEnc") },
+      headers: context.headers,
+    });
+    return serializeProvider(row);
+  });
+
+const deleteProvider = authed
+  .input(CredentialIdInput)
+  .output(v.object({ ok: v.literal(true) }))
+  .handler(async ({ input, context }) => {
+    await db.delete(schema.providerCredentials).where(eq(schema.providerCredentials.id, input.id));
+    await audit({
+      userId: context.userId,
+      action: "provider.delete",
+      targetType: "provider",
+      targetId: input.id,
+      headers: context.headers,
+    });
+    return { ok: true as const };
+  });
+
+const testProvider = authed
+  .input(CredentialIdInput)
+  .output(v.object({ ok: v.boolean(), message: v.string() }))
+  .handler(async ({ input, context }) => {
+    const row = await db.query.providerCredentials.findFirst({
+      where: eq(schema.providerCredentials.id, input.id),
+    });
+    if (!row) throw new ORPCError("NOT_FOUND");
+    try {
+      if (row.kind === "dns.route53") await createDnsProvider(row).listRecords("example.com");
+      else await createIdentityProvider(row).getIdentity("example.com");
+      await audit({
+        userId: context.userId,
+        action: "provider.test",
+        targetType: "provider",
+        targetId: row.id,
+        metadata: { ok: true },
+        headers: context.headers,
+      });
+      return { ok: true, message: "provider credentials accepted" };
+    } catch (err) {
+      return { ok: false, message: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
+const DomainPlanOptions = v.object({
+  inboundMail: v.boolean(),
+  sesSigning: v.boolean(),
+  mtaSts: v.boolean(),
+  dane: v.boolean(),
+});
+
+const DomainPlanInput = v.object({
+  domain: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(255)),
+  mtaCredentialId: v.pipe(v.string(), v.uuid()),
+  dnsProviderCredentialId: v.pipe(v.string(), v.uuid()),
+  identityProviderCredentialId: v.optional(v.pipe(v.string(), v.uuid())),
+  options: DomainPlanOptions,
+});
+
+const DomainSummary = v.object({
+  id: v.string(),
+  domain: v.string(),
+  status: v.string(),
+  mtaCredentialId: v.string(),
+  dnsProviderCredentialId: v.string(),
+  identityProviderCredentialId: v.nullable(v.string()),
+  lastPlanId: v.nullable(v.string()),
+  lastRunId: v.nullable(v.string()),
+  createdAt: v.string(),
+  updatedAt: v.string(),
+});
+
+const DomainPlanOut = v.object({
+  id: v.string(),
+  domain: v.string(),
+  status: v.string(),
+  desiredState: v.record(v.string(), v.unknown()),
+  observedState: v.record(v.string(), v.unknown()),
+  changes: v.array(v.record(v.string(), v.unknown())),
+  warnings: v.array(v.string()),
+  blockers: v.array(v.string()),
+  createdAt: v.string(),
+});
+
+const DomainRunSummary = v.object({
+  id: v.string(),
+  planId: v.nullable(v.string()),
+  domain: v.string(),
+  status: v.string(),
+  errorMessage: v.nullable(v.string()),
+  startedAt: v.string(),
+  finishedAt: v.nullable(v.string()),
+});
+
+const listDomains = authed.output(v.array(DomainSummary)).handler(async () => {
+  const rows = await db.select().from(schema.domains).orderBy(desc(schema.domains.createdAt));
+  return rows.map((r) => ({
+    id: r.id,
+    domain: r.domain,
+    status: r.status,
+    mtaCredentialId: r.mtaCredentialId,
+    dnsProviderCredentialId: r.dnsProviderCredentialId,
+    identityProviderCredentialId: r.identityProviderCredentialId,
+    lastPlanId: r.lastPlanId,
+    lastRunId: r.lastRunId,
+    createdAt: r.createdAt.toISOString(),
+    updatedAt: r.updatedAt.toISOString(),
+  }));
+});
+
+const getDomain = authed
+  .input(CredentialIdInput)
+  .output(DomainSummary)
+  .handler(async ({ input }) => {
+    const r = await db.query.domains.findFirst({ where: eq(schema.domains.id, input.id) });
+    if (!r) throw new ORPCError("NOT_FOUND");
+    return {
+      id: r.id,
+      domain: r.domain,
+      status: r.status,
+      mtaCredentialId: r.mtaCredentialId,
+      dnsProviderCredentialId: r.dnsProviderCredentialId,
+      identityProviderCredentialId: r.identityProviderCredentialId,
+      lastPlanId: r.lastPlanId,
+      lastRunId: r.lastRunId,
+      createdAt: r.createdAt.toISOString(),
+      updatedAt: r.updatedAt.toISOString(),
+    };
+  });
+
+const createDomainPlan = authed
+  .input(DomainPlanInput)
+  .output(DomainPlanOut)
+  .handler(async ({ input, context }) => {
+    const built = await buildDomainPlan(input);
+    const [row] = await db
+      .insert(schema.domainPlans)
+      .values({
+        domain: built.domain,
+        mtaCredentialId: input.mtaCredentialId,
+        dnsProviderCredentialId: input.dnsProviderCredentialId,
+        identityProviderCredentialId: input.identityProviderCredentialId ?? null,
+        desiredState: built.desiredState,
+        observedState: built.observedState,
+        changes: built.changes,
+        warnings: built.warnings,
+        blockers: built.blockers,
+        createdBy: context.userId!,
+      })
+      .returning();
+    if (!row) throw new ORPCError("INTERNAL_SERVER_ERROR");
+    await audit({
+      userId: context.userId,
+      action: "domain.plan.create",
+      targetType: "domain_plan",
+      targetId: row.id,
+      metadata: {
+        domain: row.domain,
+        changes: built.changes.length,
+        blockers: built.blockers.length,
+      },
+      headers: context.headers,
+    });
+    return serializeDomainPlan(row);
+  });
+
+const getDomainPlan = authed
+  .input(CredentialIdInput)
+  .output(DomainPlanOut)
+  .handler(async ({ input }) => {
+    const row = await db.query.domainPlans.findFirst({
+      where: eq(schema.domainPlans.id, input.id),
+    });
+    if (!row) throw new ORPCError("NOT_FOUND");
+    return serializeDomainPlan(row);
+  });
+
+function serializeDomainPlan(row: typeof schema.domainPlans.$inferSelect) {
+  return {
+    id: row.id,
+    domain: row.domain,
+    status: row.status,
+    desiredState: row.desiredState as Record<string, unknown>,
+    observedState: row.observedState as Record<string, unknown>,
+    changes: row.changes as Record<string, unknown>[],
+    warnings: row.warnings as string[],
+    blockers: row.blockers as string[],
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+const applyDomainPlan = authed
+  .input(CredentialIdInput)
+  .output(v.object({ runId: v.string() }))
+  .handler(async ({ input, context }) => {
+    const plan = await db.query.domainPlans.findFirst({
+      where: eq(schema.domainPlans.id, input.id),
+    });
+    if (!plan) throw new ORPCError("NOT_FOUND");
+    if ((plan.blockers as unknown[]).length > 0) {
+      throw new ORPCError("PRECONDITION_FAILED", { message: "plan has blockers" });
+    }
+    if (domainRunLock.active(plan.domain)) {
+      throw new ORPCError("CONFLICT", { message: "domain provisioning already running" });
+    }
+    const [run] = await db
+      .insert(schema.domainRuns)
+      .values({ planId: plan.id, domain: plan.domain, triggeredBy: context.userId! })
+      .returning();
+    if (!run) throw new ORPCError("INTERNAL_SERVER_ERROR");
+    await audit({
+      userId: context.userId,
+      action: "domain.plan.apply",
+      targetType: "domain_plan",
+      targetId: plan.id,
+      metadata: { domain: plan.domain, runId: run.id },
+      headers: context.headers,
+    });
+    void executeDomainRun(run.id, plan.id).catch((err) => console.error("[domain-runner]", err));
+    return { runId: run.id };
+  });
+
+const getDomainRun = authed
+  .input(CredentialIdInput)
+  .output(
+    v.object({
+      run: DomainRunSummary,
+      logs: v.array(
+        v.object({
+          seq: v.number(),
+          step: v.string(),
+          stream: v.string(),
+          line: v.string(),
+          emittedAt: v.string(),
+        }),
+      ),
+    }),
+  )
+  .handler(async ({ input }) => {
+    const run = await db.query.domainRuns.findFirst({ where: eq(schema.domainRuns.id, input.id) });
+    if (!run) throw new ORPCError("NOT_FOUND");
+    const logs = await db
+      .select({
+        seq: schema.domainRunLogs.seq,
+        step: schema.domainRunLogs.step,
+        stream: schema.domainRunLogs.stream,
+        line: schema.domainRunLogs.line,
+        emittedAt: schema.domainRunLogs.emittedAt,
+      })
+      .from(schema.domainRunLogs)
+      .where(eq(schema.domainRunLogs.runId, input.id))
+      .orderBy(schema.domainRunLogs.seq);
+    return {
+      run: serializeDomainRun(run),
+      logs: logs.map((l) => ({ ...l, emittedAt: l.emittedAt })),
+    };
+  });
+
+function serializeDomainRun(run: typeof schema.domainRuns.$inferSelect) {
+  return {
+    id: run.id,
+    planId: run.planId,
+    domain: run.domain,
+    status: run.status,
+    errorMessage: run.errorMessage,
+    startedAt: run.startedAt.toISOString(),
+    finishedAt: run.finishedAt ? run.finishedAt.toISOString() : null,
+  };
+}
+
+const streamDomainRun = authed
+  .input(v.object({ id: v.pipe(v.string(), v.uuid()), fromSeq: v.optional(v.number()) }))
+  .output(eventIterator(LogEvent))
+  .handler(async function* ({ input, signal }) {
+    const { id: runId, fromSeq = 0 } = input;
+    const existing = await db
+      .select()
+      .from(schema.domainRunLogs)
+      .where(eq(schema.domainRunLogs.runId, runId))
+      .orderBy(schema.domainRunLogs.seq);
+    for (const row of existing) {
+      if (row.seq <= fromSeq) continue;
+      yield {
+        kind: "log" as const,
+        runId,
+        step: row.step,
+        stream: row.stream,
+        seq: row.seq,
+        line: row.line,
+        at: row.emittedAt,
+      };
+    }
+    const run = await db.query.domainRuns.findFirst({ where: eq(schema.domainRuns.id, runId) });
+    if (!run) throw new ORPCError("NOT_FOUND");
+    if (run.status !== "pending" && run.status !== "running") {
+      yield {
+        kind: "status" as const,
+        runId,
+        status: run.status,
+        exitCode: null,
+        errorMessage: run.errorMessage,
+        finishedAt: run.finishedAt ? run.finishedAt.toISOString() : null,
+      };
+      return;
+    }
+    const buffer: DomainRunLogEvent[] = [];
+    let wake: (() => void) | null = null;
+    const unsubscribe = domainRunBroadcaster.subscribe(runId, (ev) => {
+      buffer.push(ev);
+      if (wake) {
+        const w = wake;
+        wake = null;
+        w();
+      }
+    });
+    const onAbort = () => {
+      if (wake) {
+        const w = wake;
+        wake = null;
+        w();
+      }
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+    try {
+      while (true) {
+        if (signal?.aborted) return;
+        if (buffer.length === 0) {
+          await new Promise<void>((res) => {
+            wake = res;
+          });
+          continue;
+        }
+        const ev = buffer.shift();
+        if (!ev) continue;
+        yield ev.kind === "status" ? { ...ev, exitCode: null } : ev;
+        if (ev.kind === "status" && ev.status !== "running" && ev.status !== "pending") return;
+      }
+    } finally {
+      signal?.removeEventListener("abort", onAbort);
+      unsubscribe();
+    }
+  });
+
+const cancelDomainRun = authed
+  .input(CredentialIdInput)
+  .output(v.object({ canceled: v.boolean() }))
+  .handler(async ({ input, context }) => {
+    const canceled = domainRunLock.cancel(input.id);
+    if (canceled) {
+      await audit({
+        userId: context.userId,
+        action: "domain.run.cancel",
+        targetType: "domain_run",
+        targetId: input.id,
+        headers: context.headers,
+      });
+    }
+    return { canceled };
+  });
+
 const AuditEventOut = v.object({
   id: v.string(),
   userId: v.nullable(v.string()),
@@ -730,6 +1250,23 @@ export const appRouter = {
     trigger: triggerRun,
     cancel: cancelRun,
     stream: streamRun,
+  },
+  providers: {
+    list: listProviders,
+    create: createProvider,
+    update: updateProvider,
+    delete: deleteProvider,
+    test: testProvider,
+  },
+  domains: {
+    list: listDomains,
+    get: getDomain,
+    createPlan: createDomainPlan,
+    getPlan: getDomainPlan,
+    applyPlan: applyDomainPlan,
+    getRun: getDomainRun,
+    streamRun: streamDomainRun,
+    cancelRun: cancelDomainRun,
   },
   audit: {
     list: listAuditEvents,

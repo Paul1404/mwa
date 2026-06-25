@@ -23,6 +23,8 @@
     "icons:generate": "bun run scripts/generate-icons.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-route-53": "^3.1075.0",
+    "@aws-sdk/client-sesv2": "^3.1075.0",
     "@orpc/client": "^1.14.6",
     "@orpc/server": "^1.14.6",
     "@orpc/tanstack-query": "^1.14.6",

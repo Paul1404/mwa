@@ -4,6 +4,11 @@ Trigger Mailcow upgrades on a remote server from a browser. The app SSHes
 into the target, runs the standard Mailcow update sequence, and streams
 the live terminal output back over an authenticated session.
 
+MWA can also provision mail domains onto a configured Mailcow MTA. Domain
+provisioning is provider-based: the first shipped adapters manage DNS in
+AWS Route 53, sending identity/signing in AWS SES v2, and domain/DKIM state
+through the Mailcow API.
+
 The update pipeline is:
 
 ```
@@ -86,3 +91,37 @@ See `.env.example` for the full list. The ones that matter:
   healthcheck.
 - Losing `ENCRYPTION_KEY` means every stored key becomes unreadable. Rotate
   by re-encrypting rows individually rather than swapping the env var blindly.
+
+## Domain provisioning
+
+Provisioning uses a plan/review/apply flow:
+
+1. Add or edit an SSH credential and fill the domain provisioning fields:
+   - Mailcow API URL, for example `https://mail.pdcd.net`
+   - Mailcow API key
+   - Mail hostname, for example `mail.pdcd.net`
+   - Report mailbox, for example `abuse@pdcd.net`
+   - Optional TLSA value for DANE
+2. Open Domains, add AWS provider credentials, and build a plan for the domain.
+3. Review DNS creates/updates/deletes before applying.
+4. Apply streams a domain run with persisted logs.
+
+AWS credentials are encrypted at rest with the same `ENCRYPTION_KEY` mechanism
+used for SSH keys. Raw provider secrets are never returned by API responses.
+
+The AWS adapters default SES to `eu-central-1`. New SES identities are attached
+to the `default-transactional` configuration set unless a different
+configuration set is stored on the SES provider.
+
+When SES signing is enabled, SES is treated as authoritative for DKIM. The plan
+preserves SES Easy DKIM CNAMEs pointing at `*.dkim.amazonses.com` and removes
+other `*._domainkey.<domain>` records plus the Mailcow DKIM key for that
+domain. This avoids outbound mail being double-signed by both Mailcow and SES.
+
+Useful manual checks:
+
+```sh
+aws --region eu-central-1 sesv2 get-email-identity --email-identity example.com
+aws --region eu-central-1 sesv2 list-email-identities
+aws route53 list-resource-record-sets --hosted-zone-id ZONE_ID
+```
