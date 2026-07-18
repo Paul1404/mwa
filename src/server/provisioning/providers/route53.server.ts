@@ -16,6 +16,8 @@ export class Route53Provider implements DnsProvider {
   constructor(secret: AwsSecret, config: AwsProviderConfig = {}) {
     this.hostedZoneId = config.hostedZoneId;
     this.client = new Route53Client({
+      // Route 53 is global, but the AWS SDK still requires a signing region.
+      region: "us-east-1",
       credentials: {
         accessKeyId: secret.accessKeyId,
         secretAccessKey: secret.secretAccessKey,

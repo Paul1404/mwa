@@ -2,6 +2,16 @@ import type { MtaDomainState, MtaProvider } from "./types";
 
 type MailcowResponse = { type?: string; msg?: unknown; log?: unknown };
 
+class MailcowApiError extends Error {
+  constructor(
+    path: string,
+    readonly status: number,
+  ) {
+    super(`mailcow API ${path} failed with HTTP ${status}`);
+    this.name = "MailcowApiError";
+  }
+}
+
 export type MailcowConfig = {
   apiUrl: string;
   apiKey: string;
@@ -32,7 +42,15 @@ export class MailcowProvider implements MtaProvider {
   }
 
   async getDomain(domain: string): Promise<MtaDomainState> {
-    const res = await this.request<unknown>(`/api/v1/get/domain/${encodeURIComponent(domain)}`);
+    let res: unknown;
+    try {
+      res = await this.request<unknown>(`/api/v1/get/domain/${encodeURIComponent(domain)}`);
+    } catch (err) {
+      if (err instanceof MailcowApiError && err.status === 404) {
+        return { exists: false, domain, dkimSelectors: [] };
+      }
+      throw err;
+    }
     const rows = Array.isArray(res) ? res : [res];
     const found = rows.some((r) => {
       return r && typeof r === "object" && (r as { domain_name?: unknown }).domain_name === domain;
@@ -89,7 +107,7 @@ export class MailcowProvider implements MtaProvider {
       },
       body: init?.body === undefined ? undefined : JSON.stringify(init.body),
     });
-    if (!res.ok) throw new Error(`mailcow API ${path} failed with HTTP ${res.status}`);
+    if (!res.ok) throw new MailcowApiError(path, res.status);
     const text = await res.text();
     const data = text ? (JSON.parse(text) as T) : ({} as T);
     assertMailcowSuccess(path, data);
