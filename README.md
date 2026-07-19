@@ -164,3 +164,8 @@ legitimate mail (which learns it as ham) or delete spam. `learn_spam` is availab
 when explicit Rspamd training is desired. Plans, successful applications,
 failures, token creation, and revocation are recorded in MWA's audit log without
 message bodies or secrets.
+
+The repository also includes a Codex workflow skill at
+`codex-skills/mwa-quarantine/SKILL.md`. When installed globally alongside a persistent MWA MCP
+token, a new Codex chat can interpret “sort out the quarantine” as: inspect every message, resolve
+only high-confidence ham and spam, and ask the user about the uncertain remainder.
