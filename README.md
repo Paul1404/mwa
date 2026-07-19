@@ -147,16 +147,20 @@ The remote endpoint uses stateless Streamable HTTP with JSON responses and
 exposes four tools:
 
 - `quarantine_list`: filters bounded quarantine metadata.
-- `quarantine_inspect`: parses one message into a capped plain-text preview and
-  attachment metadata. Raw MIME and attachment bodies are never returned.
+- `quarantine_inspect`: reviews one message as a capped plain-text preview and
+  attachment metadata, then returns a one-hour review receipt. Raw MIME and
+  attachment bodies are never returned.
 - `quarantine_plan_actions`: persists an exact 10-minute review plan for
-  `release`, `learn_spam`, or `delete`.
+  `release`, `learn_spam`, or `delete`. Every item must include a fresh receipt
+  created by `quarantine_inspect` with the same agent token.
 - `quarantine_apply_actions`: applies only the reviewed plan and exact
   confirmation string.
 
 Email content is untrusted input and every tool tells the client not to treat it
-as instructions. Release delivers the message, learns it as ham, and removes it
-from quarantine. `learn_spam` trains Rspamd and deletes the message. Plain delete
-removes it without training. Plans, successful applications, failures, token
-creation, and revocation are recorded in MWA's audit log without message bodies
-or secrets.
+as instructions. Listing alone never counts as review and vague cleanup requests
+do not authorize bulk deletion. The intended workflow is to inspect and classify
+every message, group only messages with the same classification, then release
+legitimate mail (which learns it as ham) or delete spam. `learn_spam` is available
+when explicit Rspamd training is desired. Plans, successful applications,
+failures, token creation, and revocation are recorded in MWA's audit log without
+message bodies or secrets.

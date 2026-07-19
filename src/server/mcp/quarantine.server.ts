@@ -5,6 +5,7 @@ import { db, schema } from "../db";
 import { createMailcowProvider } from "../provisioning/provider-factory.server";
 import type { MailcowQuarantineItem } from "../provisioning/providers/mailcow.server";
 import type { McpAuthContext } from "./auth.server";
+import { createReviewReceipt, verifyReviewReceipt } from "./review-receipt.server";
 
 const MAX_MESSAGE_BYTES = 5 * 1024 * 1024;
 const MAX_PREVIEW_CHARS = 6_000;
@@ -68,6 +69,12 @@ export async function inspectQuarantineItem(auth: McpAuthContext, id: string) {
     maxHeadersSize: 256 * 1024,
   });
   const body = parsed.text || stripHtml(parsed.html ?? "");
+  const review = createReviewReceipt({
+    tokenId: auth.token.id,
+    credentialId: auth.credential.id,
+    itemId: item.id,
+    queueId: item.queueId ?? null,
+  });
   return {
     securityNotice: UNTRUSTED_NOTICE,
     item: publicItem(item),
@@ -87,17 +94,27 @@ export async function inspectQuarantineItem(auth: McpAuthContext, id: string) {
       symbols: item.symbols,
       fuzzyHashes: item.fuzzyHashes,
     },
+    review: {
+      ...review,
+      instruction:
+        "Keep this receipt with your classification. It is required to plan an action for this exact message.",
+    },
   };
 }
 
 export async function planQuarantineAction(
   auth: McpAuthContext,
-  input: { action: "release" | "learn_spam" | "delete"; itemIds: string[]; reason: string },
+  input: {
+    action: "release" | "learn_spam" | "delete";
+    reviews: Array<{ id: string; receipt: string }>;
+    reason: string;
+  },
 ) {
   requireManageScope(auth);
-  const itemIds = [...new Set(input.itemIds)];
+  const reviews = new Map(input.reviews.map((review) => [review.id, review.receipt]));
+  const itemIds = [...reviews.keys()];
   if (itemIds.length === 0 || itemIds.length > 50) {
-    throw new Error("Choose between 1 and 50 quarantine items");
+    throw new Error("Choose between 1 and 50 inspected quarantine items");
   }
   const provider = createMailcowProvider(auth.credential);
   const current = await provider.listQuarantine();
@@ -105,6 +122,20 @@ export async function planQuarantineAction(
   const missing = itemIds.filter((id) => !byId.has(id));
   if (missing.length > 0)
     throw new Error(`Quarantine items no longer exist: ${missing.join(", ")}`);
+  const unreviewed = itemIds.filter((id) => {
+    const item = byId.get(id)!;
+    return !verifyReviewReceipt(reviews.get(id)!, {
+      tokenId: auth.token.id,
+      credentialId: auth.credential.id,
+      itemId: id,
+      queueId: item.queueId ?? null,
+    });
+  });
+  if (unreviewed.length > 0) {
+    throw new Error(
+      `Quarantine items require a fresh inspection by this token before planning: ${unreviewed.join(", ")}. Call quarantine_inspect for each item and pass its review receipt.`,
+    );
+  }
   const snapshot = itemIds.map((id) => publicItem(byId.get(id)!));
   const expiresAt = new Date(Date.now() + PLAN_TTL_MS);
   const [plan] = await db
@@ -132,6 +163,7 @@ export async function planQuarantineAction(
       action: input.action,
       itemIds,
       reason: input.reason.trim(),
+      reviewProofsValidated: true,
     },
   });
   return {
@@ -139,6 +171,7 @@ export async function planQuarantineAction(
     action: plan.action,
     consequence: consequence(plan.action),
     reason: plan.reason,
+    reviewStatus: "Every planned message was individually inspected with this agent token.",
     items: snapshot,
     expiresAt: expiresAt.toISOString(),
     confirmation: `APPLY ${plan.id}`,

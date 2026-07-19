@@ -66,6 +66,18 @@ function McpPage() {
         </p>
       </div>
 
+      <div className="flex items-start gap-3 rounded-lg border border-amber-300/30 bg-amber-300/5 p-4">
+        <ShieldAlert className="size-5 shrink-0 text-amber-300" />
+        <div className="space-y-1">
+          <p className="text-sm font-medium">Review-first quarantine safety</p>
+          <p className="text-sm text-[color:var(--color-muted)] max-w-3xl">
+            Listing messages is not a review. MWA requires the agent to inspect every message before
+            it can plan an action: legitimate mail is released and learned as ham; spam is deleted.
+            A vague request such as “clean up the quarantine” never authorizes deleting everything.
+          </p>
+        </div>
+      </div>
+
       {created ? (
         <Card className="border-[color:var(--color-accent)]/40">
           <CardHeader>

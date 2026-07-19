@@ -60,6 +60,11 @@ describe("MWA MCP transport", () => {
       "quarantine_apply_actions",
     ]);
     expect(listed.result.tools.at(-1).annotations.destructiveHint).toBe(true);
+    const planTool = listed.result.tools.find(
+      (tool: { name: string }) => tool.name === "quarantine_plan_actions",
+    );
+    expect(planTool.inputSchema.required).toContain("reviews");
+    expect(planTool.inputSchema.properties).not.toHaveProperty("itemIds");
   });
 
   it("returns structured JSON from quarantine_list", async () => {
