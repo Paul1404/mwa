@@ -117,11 +117,11 @@ function DomainRunPage() {
 
   if (initial.isLoading)
     return <p className="text-sm text-[color:var(--color-muted)]">Loading...</p>;
-  if (initial.error || !status) {
-    return (
-      <p className="text-sm text-[color:var(--color-danger)]">{(initial.error as Error).message}</p>
-    );
+  if (initial.error) {
+    return <p className="text-sm text-[color:var(--color-danger)]">{initial.error.message}</p>;
   }
+  if (!initial.data || !status)
+    return <p className="text-sm text-[color:var(--color-muted)]">Loading...</p>;
 
   return (
     <div className="flex flex-col gap-6">

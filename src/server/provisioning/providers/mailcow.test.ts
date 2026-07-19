@@ -11,7 +11,7 @@ describe("MailcowProvider", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const provider = new MailcowProvider({
-      apiUrl: "https://mail.example.com",
+      apiUrl: "https://mail.example.com/api/",
       apiKey: "test-key",
     });
 

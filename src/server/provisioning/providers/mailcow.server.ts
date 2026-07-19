@@ -30,7 +30,9 @@ export class MailcowProvider implements MtaProvider {
   private defaults: Required<NonNullable<MailcowConfig["defaults"]>>;
 
   constructor(config: MailcowConfig) {
-    this.baseUrl = config.apiUrl.replace(/\/$/, "");
+    // Operators commonly paste the API prefix shown in mailcow examples. Keep
+    // the stored value forgiving because request paths already include /api/v1.
+    this.baseUrl = config.apiUrl.replace(/\/+$/, "").replace(/\/api(?:\/v1)?$/i, "");
     this.apiKey = config.apiKey;
     this.defaults = {
       aliases: config.defaults?.aliases ?? 400,
