@@ -2,6 +2,27 @@ import type { MtaDomainState, MtaProvider } from "./types";
 
 type MailcowResponse = { type?: string; msg?: unknown; log?: unknown };
 
+export type MailcowQuarantineItem = {
+  id: string;
+  queueId: string | null;
+  sender: string;
+  recipient: string;
+  subject: string;
+  score: number | null;
+  rspamdAction: string | null;
+  virus: boolean;
+  notified: boolean;
+  createdAt: string | null;
+};
+
+export type MailcowQuarantineDetails = MailcowQuarantineItem & {
+  rawMessage: string;
+  symbols: unknown;
+  fuzzyHashes: unknown;
+};
+
+export type MailcowQuarantineAction = "release" | "learn_spam" | "delete";
+
 class MailcowApiError extends Error {
   constructor(
     path: string,
@@ -89,6 +110,49 @@ export class MailcowProvider implements MtaProvider {
     });
   }
 
+  async listQuarantine(): Promise<MailcowQuarantineItem[]> {
+    const data = await this.request<unknown>("/api/v1/get/quarantine/all");
+    const rows = Array.isArray(data) ? data : data ? [data] : [];
+    return rows.map(normalizeQuarantineItem).filter((row) => row !== null);
+  }
+
+  async getQuarantineItem(id: string): Promise<MailcowQuarantineDetails | null> {
+    let data: unknown;
+    try {
+      data = await this.request<unknown>(`/api/v1/get/quarantine/${encodeURIComponent(id)}`);
+    } catch (err) {
+      if (err instanceof MailcowApiError && err.status === 404) return null;
+      throw err;
+    }
+    const rows = Array.isArray(data) ? data : data ? [data] : [];
+    for (const raw of rows) {
+      const item = normalizeQuarantineItem(raw);
+      if (!item || item.id !== id || !raw || typeof raw !== "object") continue;
+      const row = raw as Record<string, unknown>;
+      return {
+        ...item,
+        rawMessage: typeof row.msg === "string" ? row.msg : "",
+        symbols: parseMaybeJson(row.symbols),
+        fuzzyHashes: parseMaybeJson(row.fuzzy_hashes),
+      };
+    }
+    return null;
+  }
+
+  async performQuarantineAction(action: MailcowQuarantineAction, ids: string[]): Promise<void> {
+    if (action === "delete") {
+      await this.request("/api/v1/delete/qitem", { method: "POST", body: ids });
+      return;
+    }
+    await this.request("/api/v1/edit/qitem", {
+      method: "POST",
+      body: {
+        items: ids,
+        attr: { action: action === "learn_spam" ? "learnspam" : "release" },
+      },
+    });
+  }
+
   private async getDkimSelectors(domain: string): Promise<string[]> {
     try {
       const res = await this.request<unknown>(`/api/v1/get/dkim/${encodeURIComponent(domain)}`);
@@ -127,5 +191,64 @@ function assertMailcowSuccess(path: string, data: unknown) {
         `mailcow API ${path} returned ${type}: ${JSON.stringify((row as MailcowResponse).msg)}`,
       );
     }
+  }
+}
+
+function normalizeQuarantineItem(raw: unknown): MailcowQuarantineItem | null {
+  if (!raw || typeof raw !== "object") return null;
+  const row = raw as Record<string, unknown>;
+  const id = stringValue(row.id);
+  if (!id || !/^\d+$/.test(id)) return null;
+  return {
+    id,
+    queueId: nullableString(row.qid),
+    sender: nullableString(row.sender) ?? "",
+    recipient: nullableString(row.rcpt) ?? "",
+    subject: nullableString(row.subject) ?? "",
+    score: finiteNumber(row.score),
+    rspamdAction: nullableString(row.action),
+    virus: booleanValue(row.virus_flag),
+    notified: booleanValue(row.notified),
+    createdAt: timestampValue(row.created),
+  };
+}
+
+function stringValue(value: unknown): string | null {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return null;
+}
+
+function nullableString(value: unknown): string | null {
+  const text = stringValue(value);
+  return text === null || text === "" ? null : text;
+}
+
+function finiteNumber(value: unknown): number | null {
+  const number = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function booleanValue(value: unknown): boolean {
+  return value === true || value === 1 || value === "1";
+}
+
+function timestampValue(value: unknown): string | null {
+  const numeric = finiteNumber(value);
+  if (numeric !== null) {
+    const date = new Date(numeric > 10_000_000_000 ? numeric : numeric * 1000);
+    return Number.isNaN(date.getTime()) ? null : date.toISOString();
+  }
+  if (typeof value !== "string" || !value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function parseMaybeJson(value: unknown): unknown {
+  if (typeof value !== "string") return value ?? null;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
   }
 }

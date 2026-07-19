@@ -9,6 +9,10 @@ provisioning is provider-based: the first shipped adapters manage DNS in
 AWS Route 53, sending identity/signing in AWS SES v2, and domain/DKIM state
 through the Mailcow API.
 
+MWA also exposes a token-authenticated MCP endpoint for AI-assisted Mailcow
+quarantine review. It can list and inspect bounded message previews, then uses
+a persisted plan/review/apply flow for release, spam learning, and deletion.
+
 The update pipeline is:
 
 ```
@@ -88,7 +92,8 @@ See `.env.example` for the full list. The ones that matter:
 - Sessions are HTTP-only, SameSite=Lax cookies signed by better-auth.
 - Every oRPC procedure that touches credentials or runs requires an
   authenticated session. The only public endpoints are auth and the
-  healthcheck.
+  healthcheck. `/api/mcp` is reachable without a browser session but requires a
+  hashed, scoped, unexpired bearer token created from the authenticated MCP page.
 - Losing `ENCRYPTION_KEY` means every stored key becomes unreadable. Rotate
   by re-encrypting rows individually rather than swapping the env var blindly.
 
@@ -125,3 +130,33 @@ aws --region eu-central-1 sesv2 get-email-identity --email-identity example.com
 aws --region eu-central-1 sesv2 list-email-identities
 aws route53 list-resource-record-sets --hosted-zone-id ZONE_ID
 ```
+
+## Quarantine MCP
+
+Open **MCP** in the authenticated app and create a token for a Mailcow credential.
+The plaintext token is displayed once; MWA stores only its SHA-256 hash. Tokens
+can be read-only or manage-capable, expire automatically, and can be revoked at
+any time. Connect an MCP client to:
+
+```text
+https://mwa.example.com/api/mcp
+Authorization: Bearer mwa_mcp_...
+```
+
+The remote endpoint uses stateless Streamable HTTP with JSON responses and
+exposes four tools:
+
+- `quarantine_list`: filters bounded quarantine metadata.
+- `quarantine_inspect`: parses one message into a capped plain-text preview and
+  attachment metadata. Raw MIME and attachment bodies are never returned.
+- `quarantine_plan_actions`: persists an exact 10-minute review plan for
+  `release`, `learn_spam`, or `delete`.
+- `quarantine_apply_actions`: applies only the reviewed plan and exact
+  confirmation string.
+
+Email content is untrusted input and every tool tells the client not to treat it
+as instructions. Release delivers the message, learns it as ham, and removes it
+from quarantine. `learn_spam` trains Rspamd and deletes the message. Plain delete
+removes it without training. Plans, successful applications, failures, token
+creation, and revocation are recorded in MWA's audit log without message bodies
+or secrets.

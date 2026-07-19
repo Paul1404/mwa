@@ -129,6 +129,61 @@ export const auditEvents = pgTable("audit_events", {
   at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const mcpTokenScopes = ["read", "manage"] as const;
+export type McpTokenScope = (typeof mcpTokenScopes)[number];
+
+export const mcpAccessTokens = pgTable("mcp_access_tokens", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  label: varchar("label", { length: 100 }).notNull(),
+  tokenPrefix: varchar("token_prefix", { length: 20 }).notNull(),
+  tokenHash: varchar("token_hash", { length: 64 }).notNull().unique(),
+  scope: varchar("scope", { length: 16 }).notNull().$type<McpTokenScope>().default("read"),
+  credentialId: uuid("credential_id")
+    .notNull()
+    .references(() => sshCredentials.id, { onDelete: "cascade" }),
+  createdBy: text("created_by")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const quarantineActions = ["release", "learn_spam", "delete"] as const;
+export type QuarantineAction = (typeof quarantineActions)[number];
+
+export const quarantinePlanStatuses = [
+  "pending",
+  "applying",
+  "applied",
+  "failed",
+  "expired",
+] as const;
+export type QuarantinePlanStatus = (typeof quarantinePlanStatuses)[number];
+
+export const quarantineActionPlans = pgTable("quarantine_action_plans", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tokenId: uuid("token_id")
+    .notNull()
+    .references(() => mcpAccessTokens.id, { onDelete: "cascade" }),
+  credentialId: uuid("credential_id")
+    .notNull()
+    .references(() => sshCredentials.id, { onDelete: "cascade" }),
+  action: varchar("action", { length: 24 }).notNull().$type<QuarantineAction>(),
+  itemIds: jsonb("item_ids").notNull().$type<string[]>(),
+  snapshot: jsonb("snapshot").notNull().$type<Record<string, unknown>[]>(),
+  reason: text("reason").notNull(),
+  status: varchar("status", { length: 16 })
+    .notNull()
+    .$type<QuarantinePlanStatus>()
+    .default("pending"),
+  errorMessage: text("error_message"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  appliedAt: timestamp("applied_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const updateRunStatus = ["pending", "running", "success", "failed", "canceled"] as const;
 export type UpdateRunStatus = (typeof updateRunStatus)[number];
 
@@ -302,6 +357,29 @@ export const providerCredentialRelations = relations(providerCredentials, ({ one
   owner: one(users, {
     fields: [providerCredentials.createdBy],
     references: [users.id],
+  }),
+}));
+
+export const mcpAccessTokenRelations = relations(mcpAccessTokens, ({ one, many }) => ({
+  credential: one(sshCredentials, {
+    fields: [mcpAccessTokens.credentialId],
+    references: [sshCredentials.id],
+  }),
+  owner: one(users, {
+    fields: [mcpAccessTokens.createdBy],
+    references: [users.id],
+  }),
+  quarantinePlans: many(quarantineActionPlans),
+}));
+
+export const quarantineActionPlanRelations = relations(quarantineActionPlans, ({ one }) => ({
+  token: one(mcpAccessTokens, {
+    fields: [quarantineActionPlans.tokenId],
+    references: [mcpAccessTokens.id],
+  }),
+  credential: one(sshCredentials, {
+    fields: [quarantineActionPlans.credentialId],
+    references: [sshCredentials.id],
   }),
 }));
 

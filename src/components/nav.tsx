@@ -1,5 +1,5 @@
 import { Link, useRouter } from "@tanstack/react-router";
-import { Globe2, LogOut, ScrollText, Server, Terminal } from "lucide-react";
+import { Bot, Globe2, LogOut, ScrollText, Server, Terminal } from "lucide-react";
 import { authClient } from "~/lib/auth-client";
 import { Button } from "./ui/button";
 
@@ -46,6 +46,13 @@ export function AppNav({ email }: { email: string | undefined }) {
             >
               <ScrollText className="size-3.5" />
               Audit
+            </Link>
+            <Link
+              to="/mcp"
+              className="px-3 py-1.5 rounded-md text-[color:var(--color-muted)] hover:text-[color:var(--color-text)] [&.active]:text-[color:var(--color-text)] [&.active]:bg-[color:var(--color-surface-2)] flex items-center gap-2"
+            >
+              <Bot className="size-3.5" />
+              MCP
             </Link>
           </nav>
         </div>

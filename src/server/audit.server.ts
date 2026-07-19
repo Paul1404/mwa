@@ -21,7 +21,12 @@ export type AuditAction =
   | "domain.mailcow.create"
   | "domain.dns.change"
   | "domain.ses.identity.create"
-  | "domain.ses.mail_from.update";
+  | "domain.ses.mail_from.update"
+  | "mcp.token.create"
+  | "mcp.token.revoke"
+  | "quarantine.action.plan"
+  | "quarantine.action.apply"
+  | "quarantine.action.fail";
 
 export type AuditTargetType =
   | "credential"
@@ -29,7 +34,9 @@ export type AuditTargetType =
   | "provider"
   | "domain"
   | "domain_plan"
-  | "domain_run";
+  | "domain_run"
+  | "mcp_token"
+  | "quarantine_plan";
 
 export type AuditInput = {
   userId: string | null;

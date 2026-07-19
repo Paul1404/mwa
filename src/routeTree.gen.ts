@@ -13,7 +13,9 @@ import { Route as SignupRouteImport } from './routes/signup'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiMcpRouteImport } from './routes/api.mcp'
 import { Route as ApiHealthRouteImport } from './routes/api.health'
+import { Route as AppMcpRouteImport } from './routes/_app.mcp'
 import { Route as AppDashboardRouteImport } from './routes/_app.dashboard'
 import { Route as AppAuditRouteImport } from './routes/_app.audit'
 import { Route as AppDomainsIndexRouteImport } from './routes/_app.domains.index'
@@ -46,10 +48,20 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMcpRoute = ApiMcpRouteImport.update({
+  id: '/api/mcp',
+  path: '/api/mcp',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AppMcpRoute = AppMcpRouteImport.update({
+  id: '/mcp',
+  path: '/mcp',
+  getParentRoute: () => AppRoute,
 } as any)
 const AppDashboardRoute = AppDashboardRouteImport.update({
   id: '/dashboard',
@@ -118,7 +130,9 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/audit': typeof AppAuditRoute
   '/dashboard': typeof AppDashboardRoute
+  '/mcp': typeof AppMcpRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/mcp': typeof ApiMcpRoute
   '/credentials/$id': typeof AppCredentialsIdRoute
   '/credentials/new': typeof AppCredentialsNewRoute
   '/domain-plans/$planId': typeof AppDomainPlansPlanIdRoute
@@ -136,7 +150,9 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/audit': typeof AppAuditRoute
   '/dashboard': typeof AppDashboardRoute
+  '/mcp': typeof AppMcpRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/mcp': typeof ApiMcpRoute
   '/credentials/$id': typeof AppCredentialsIdRoute
   '/credentials/new': typeof AppCredentialsNewRoute
   '/domain-plans/$planId': typeof AppDomainPlansPlanIdRoute
@@ -156,7 +172,9 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/_app/audit': typeof AppAuditRoute
   '/_app/dashboard': typeof AppDashboardRoute
+  '/_app/mcp': typeof AppMcpRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/mcp': typeof ApiMcpRoute
   '/_app/credentials/$id': typeof AppCredentialsIdRoute
   '/_app/credentials/new': typeof AppCredentialsNewRoute
   '/_app/domain-plans/$planId': typeof AppDomainPlansPlanIdRoute
@@ -176,7 +194,9 @@ export interface FileRouteTypes {
     | '/signup'
     | '/audit'
     | '/dashboard'
+    | '/mcp'
     | '/api/health'
+    | '/api/mcp'
     | '/credentials/$id'
     | '/credentials/new'
     | '/domain-plans/$planId'
@@ -194,7 +214,9 @@ export interface FileRouteTypes {
     | '/signup'
     | '/audit'
     | '/dashboard'
+    | '/mcp'
     | '/api/health'
+    | '/api/mcp'
     | '/credentials/$id'
     | '/credentials/new'
     | '/domain-plans/$planId'
@@ -213,7 +235,9 @@ export interface FileRouteTypes {
     | '/signup'
     | '/_app/audit'
     | '/_app/dashboard'
+    | '/_app/mcp'
     | '/api/health'
+    | '/api/mcp'
     | '/_app/credentials/$id'
     | '/_app/credentials/new'
     | '/_app/domain-plans/$planId'
@@ -232,6 +256,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   SignupRoute: typeof SignupRoute
   ApiHealthRoute: typeof ApiHealthRoute
+  ApiMcpRoute: typeof ApiMcpRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiRpcSplatRoute: typeof ApiRpcSplatRoute
 }
@@ -266,12 +291,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/mcp': {
+      id: '/api/mcp'
+      path: '/api/mcp'
+      fullPath: '/api/mcp'
+      preLoaderRoute: typeof ApiMcpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/health': {
       id: '/api/health'
       path: '/api/health'
       fullPath: '/api/health'
       preLoaderRoute: typeof ApiHealthRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_app/mcp': {
+      id: '/_app/mcp'
+      path: '/mcp'
+      fullPath: '/mcp'
+      preLoaderRoute: typeof AppMcpRouteImport
+      parentRoute: typeof AppRoute
     }
     '/_app/dashboard': {
       id: '/_app/dashboard'
@@ -363,6 +402,7 @@ declare module '@tanstack/react-router' {
 interface AppRouteChildren {
   AppAuditRoute: typeof AppAuditRoute
   AppDashboardRoute: typeof AppDashboardRoute
+  AppMcpRoute: typeof AppMcpRoute
   AppCredentialsIdRoute: typeof AppCredentialsIdRoute
   AppCredentialsNewRoute: typeof AppCredentialsNewRoute
   AppDomainPlansPlanIdRoute: typeof AppDomainPlansPlanIdRoute
@@ -376,6 +416,7 @@ interface AppRouteChildren {
 const AppRouteChildren: AppRouteChildren = {
   AppAuditRoute: AppAuditRoute,
   AppDashboardRoute: AppDashboardRoute,
+  AppMcpRoute: AppMcpRoute,
   AppCredentialsIdRoute: AppCredentialsIdRoute,
   AppCredentialsNewRoute: AppCredentialsNewRoute,
   AppDomainPlansPlanIdRoute: AppDomainPlansPlanIdRoute,
@@ -394,6 +435,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   SignupRoute: SignupRoute,
   ApiHealthRoute: ApiHealthRoute,
+  ApiMcpRoute: ApiMcpRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiRpcSplatRoute: ApiRpcSplatRoute,
 }

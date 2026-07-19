@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import {
+  Bot,
+  CheckCircle2,
   KeyRound,
   Pencil,
   PlayCircle,
@@ -37,6 +39,19 @@ const ACTION_META: Record<string, ActionMeta> = {
   "run.start": { icon: PlayCircle, label: "Run started", tone: "info" },
   "run.cancel": { icon: StopCircle, label: "Run canceled", tone: "warn" },
   "run.complete": { icon: ScrollText, label: "Run completed", tone: "success" },
+  "mcp.token.create": { icon: KeyRound, label: "MCP token created", tone: "success" },
+  "mcp.token.revoke": { icon: Trash2, label: "MCP token revoked", tone: "danger" },
+  "quarantine.action.plan": { icon: Bot, label: "Quarantine action planned", tone: "info" },
+  "quarantine.action.apply": {
+    icon: CheckCircle2,
+    label: "Quarantine action applied",
+    tone: "success",
+  },
+  "quarantine.action.fail": {
+    icon: ShieldAlert,
+    label: "Quarantine action failed",
+    tone: "danger",
+  },
 };
 
 function ActionBadge({ action }: { action: string }) {
@@ -95,7 +110,7 @@ function AuditPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Audit log</h1>
         <p className="text-sm text-[color:var(--color-muted)] mt-1">
-          Recent credential, run, and host key events. Showing the latest 100.
+          Recent credential, run, domain, MCP, and quarantine events. Showing the latest 100.
         </p>
       </div>
 

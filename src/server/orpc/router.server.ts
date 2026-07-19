@@ -4,6 +4,7 @@ import * as v from "valibot";
 import { audit } from "../audit.server";
 import { CredentialDecryptError, encrypt, fingerprintKey, isDecryptable } from "../crypto.server";
 import { db, schema } from "../db";
+import { generateMcpToken } from "../mcp/auth.server";
 import { runPreflight } from "../preflight.server";
 import {
   type DomainRunLogEvent,
@@ -1232,6 +1233,141 @@ const listAuditEvents = authed
     }));
   });
 
+// ---------------------------------------------------------------------------
+// MCP access tokens
+// ---------------------------------------------------------------------------
+
+const McpTokenSummary = v.object({
+  id: v.string(),
+  label: v.string(),
+  tokenPrefix: v.string(),
+  scope: v.string(),
+  credentialId: v.string(),
+  credentialLabel: v.string(),
+  lastUsedAt: v.nullable(v.string()),
+  expiresAt: v.nullable(v.string()),
+  revokedAt: v.nullable(v.string()),
+  createdAt: v.string(),
+});
+
+const listMcpTokens = authed.output(v.array(McpTokenSummary)).handler(async () => {
+  const rows = await db
+    .select({
+      token: schema.mcpAccessTokens,
+      credentialLabel: schema.sshCredentials.label,
+    })
+    .from(schema.mcpAccessTokens)
+    .innerJoin(
+      schema.sshCredentials,
+      eq(schema.sshCredentials.id, schema.mcpAccessTokens.credentialId),
+    )
+    .orderBy(desc(schema.mcpAccessTokens.createdAt));
+  return rows.map(({ token, credentialLabel }) => ({
+    id: token.id,
+    label: token.label,
+    tokenPrefix: token.tokenPrefix,
+    scope: token.scope,
+    credentialId: token.credentialId,
+    credentialLabel,
+    lastUsedAt: token.lastUsedAt?.toISOString() ?? null,
+    expiresAt: token.expiresAt?.toISOString() ?? null,
+    revokedAt: token.revokedAt?.toISOString() ?? null,
+    createdAt: token.createdAt.toISOString(),
+  }));
+});
+
+const createMcpToken = authed
+  .input(
+    v.object({
+      label: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100)),
+      credentialId: v.pipe(v.string(), v.uuid()),
+      scope: v.picklist(schema.mcpTokenScopes),
+      expiresInDays: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(365))),
+    }),
+  )
+  .output(
+    v.object({
+      id: v.string(),
+      label: v.string(),
+      token: v.string(),
+      tokenPrefix: v.string(),
+      scope: v.string(),
+      expiresAt: v.nullable(v.string()),
+    }),
+  )
+  .handler(async ({ input, context }) => {
+    const credential = await db.query.sshCredentials.findFirst({
+      where: eq(schema.sshCredentials.id, input.credentialId),
+    });
+    if (!credential) throw new ORPCError("NOT_FOUND", { message: "credential not found" });
+    if (!credential.mailcowApiUrl || !credential.mailcowApiKeyEnc) {
+      throw new ORPCError("BAD_REQUEST", {
+        message: "credential needs a Mailcow API URL and API key",
+      });
+    }
+    const issued = generateMcpToken();
+    const expiresAt = input.expiresInDays
+      ? new Date(Date.now() + input.expiresInDays * 24 * 60 * 60 * 1000)
+      : null;
+    const [row] = await db
+      .insert(schema.mcpAccessTokens)
+      .values({
+        label: input.label,
+        tokenPrefix: issued.prefix,
+        tokenHash: issued.hash,
+        scope: input.scope,
+        credentialId: input.credentialId,
+        createdBy: context.userId,
+        expiresAt,
+      })
+      .returning();
+    if (!row) throw new ORPCError("INTERNAL_SERVER_ERROR", { message: "token creation failed" });
+    await audit({
+      userId: context.userId,
+      action: "mcp.token.create",
+      targetType: "mcp_token",
+      targetId: row.id,
+      headers: context.headers,
+      metadata: {
+        label: row.label,
+        tokenPrefix: row.tokenPrefix,
+        scope: row.scope,
+        credentialId: row.credentialId,
+        expiresAt: expiresAt?.toISOString() ?? null,
+      },
+    });
+    return {
+      id: row.id,
+      label: row.label,
+      token: issued.raw,
+      tokenPrefix: row.tokenPrefix,
+      scope: row.scope,
+      expiresAt: expiresAt?.toISOString() ?? null,
+    };
+  });
+
+const revokeMcpToken = authed
+  .input(v.object({ id: v.pipe(v.string(), v.uuid()) }))
+  .output(v.object({ id: v.string(), revokedAt: v.string() }))
+  .handler(async ({ input, context }) => {
+    const revokedAt = new Date();
+    const [row] = await db
+      .update(schema.mcpAccessTokens)
+      .set({ revokedAt })
+      .where(eq(schema.mcpAccessTokens.id, input.id))
+      .returning();
+    if (!row) throw new ORPCError("NOT_FOUND", { message: "MCP token not found" });
+    await audit({
+      userId: context.userId,
+      action: "mcp.token.revoke",
+      targetType: "mcp_token",
+      targetId: row.id,
+      headers: context.headers,
+      metadata: { label: row.label, tokenPrefix: row.tokenPrefix },
+    });
+    return { id: row.id, revokedAt: revokedAt.toISOString() };
+  });
+
 export const appRouter = {
   credentials: {
     list: listCredentials,
@@ -1270,6 +1406,11 @@ export const appRouter = {
   },
   audit: {
     list: listAuditEvents,
+  },
+  mcp: {
+    listTokens: listMcpTokens,
+    createToken: createMcpToken,
+    revokeToken: revokeMcpToken,
   },
 };
 
