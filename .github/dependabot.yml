@@ -9,6 +9,9 @@ updates:
       timezone: Europe/Berlin
     open-pull-requests-limit: 10
     groups:
+      aws:
+        patterns:
+          - "@aws-sdk/*"
       tanstack:
         patterns:
           - "@tanstack/*"
@@ -21,6 +24,18 @@ updates:
       types:
         patterns:
           - "@types/*"
+      react:
+        patterns:
+          - "react*"
+          - "@types/react*"
+      tailwind:
+        patterns:
+          - "tailwindcss"
+          - "@tailwindcss/*"
+      vite:
+        patterns:
+          - "vite"
+          - "@vitejs/*"
   - package-ecosystem: docker
     directory: /
     schedule:

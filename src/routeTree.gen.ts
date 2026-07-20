@@ -9,29 +9,33 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SignupRouteImport } from './routes/signup'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ApiMcpRouteImport } from './routes/api.mcp'
-import { Route as ApiHealthRouteImport } from './routes/api.health'
-import { Route as AppMcpRouteImport } from './routes/_app.mcp'
-import { Route as AppDashboardRouteImport } from './routes/_app.dashboard'
+import { Route as AppRouteImport } from './routes/_app'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as SignupRouteImport } from './routes/signup'
 import { Route as AppAuditRouteImport } from './routes/_app.audit'
-import { Route as AppDomainsIndexRouteImport } from './routes/_app.domains.index'
+import { Route as AppDashboardRouteImport } from './routes/_app.dashboard'
+import { Route as AppMcpRouteImport } from './routes/_app.mcp'
+import { Route as ApiHealthRouteImport } from './routes/api.health'
+import { Route as ApiMcpRouteImport } from './routes/api.mcp'
 import { Route as AppCredentialsIndexRouteImport } from './routes/_app.credentials.index'
-import { Route as ApiRpcSplatRouteImport } from './routes/api.rpc.$'
-import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
-import { Route as AppRunsRunIdRouteImport } from './routes/_app.runs.$runId'
-import { Route as AppDomainsNewRouteImport } from './routes/_app.domains.new'
-import { Route as AppDomainRunsRunIdRouteImport } from './routes/_app.domain-runs.$runId'
-import { Route as AppDomainPlansPlanIdRouteImport } from './routes/_app.domain-plans.$planId'
-import { Route as AppCredentialsNewRouteImport } from './routes/_app.credentials.new'
 import { Route as AppCredentialsIdRouteImport } from './routes/_app.credentials.$id'
+import { Route as AppCredentialsNewRouteImport } from './routes/_app.credentials.new'
+import { Route as AppDomainPlansPlanIdRouteImport } from './routes/_app.domain-plans.$planId'
+import { Route as AppDomainRunsRunIdRouteImport } from './routes/_app.domain-runs.$runId'
+import { Route as AppDomainsIndexRouteImport } from './routes/_app.domains.index'
+import { Route as AppDomainsNewRouteImport } from './routes/_app.domains.new'
+import { Route as AppRunsRunIdRouteImport } from './routes/_app.runs.$runId'
+import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
+import { Route as ApiRpcSplatRouteImport } from './routes/api.rpc.$'
 
-const SignupRoute = SignupRouteImport.update({
-  id: '/signup',
-  path: '/signup',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppRoute = AppRouteImport.update({
+  id: '/_app',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -39,28 +43,14 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AppRoute = AppRouteImport.update({
-  id: '/_app',
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiMcpRoute = ApiMcpRouteImport.update({
-  id: '/api/mcp',
-  path: '/api/mcp',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiHealthRoute = ApiHealthRouteImport.update({
-  id: '/api/health',
-  path: '/api/health',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AppMcpRoute = AppMcpRouteImport.update({
-  id: '/mcp',
-  path: '/mcp',
+const AppAuditRoute = AppAuditRouteImport.update({
+  id: '/audit',
+  path: '/audit',
   getParentRoute: () => AppRoute,
 } as any)
 const AppDashboardRoute = AppDashboardRouteImport.update({
@@ -68,49 +58,29 @@ const AppDashboardRoute = AppDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AppRoute,
 } as any)
-const AppAuditRoute = AppAuditRouteImport.update({
-  id: '/audit',
-  path: '/audit',
+const AppMcpRoute = AppMcpRouteImport.update({
+  id: '/mcp',
+  path: '/mcp',
   getParentRoute: () => AppRoute,
 } as any)
-const AppDomainsIndexRoute = AppDomainsIndexRouteImport.update({
-  id: '/domains/',
-  path: '/domains/',
-  getParentRoute: () => AppRoute,
+const ApiHealthRoute = ApiHealthRouteImport.update({
+  id: '/api/health',
+  path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpRoute = ApiMcpRouteImport.update({
+  id: '/api/mcp',
+  path: '/api/mcp',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AppCredentialsIndexRoute = AppCredentialsIndexRouteImport.update({
   id: '/credentials/',
   path: '/credentials/',
   getParentRoute: () => AppRoute,
 } as any)
-const ApiRpcSplatRoute = ApiRpcSplatRouteImport.update({
-  id: '/api/rpc/$',
-  path: '/api/rpc/$',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
-  id: '/api/auth/$',
-  path: '/api/auth/$',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AppRunsRunIdRoute = AppRunsRunIdRouteImport.update({
-  id: '/runs/$runId',
-  path: '/runs/$runId',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppDomainsNewRoute = AppDomainsNewRouteImport.update({
-  id: '/domains/new',
-  path: '/domains/new',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppDomainRunsRunIdRoute = AppDomainRunsRunIdRouteImport.update({
-  id: '/domain-runs/$runId',
-  path: '/domain-runs/$runId',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppDomainPlansPlanIdRoute = AppDomainPlansPlanIdRouteImport.update({
-  id: '/domain-plans/$planId',
-  path: '/domain-plans/$planId',
+const AppCredentialsIdRoute = AppCredentialsIdRouteImport.update({
+  id: '/credentials/$id',
+  path: '/credentials/$id',
   getParentRoute: () => AppRoute,
 } as any)
 const AppCredentialsNewRoute = AppCredentialsNewRouteImport.update({
@@ -118,10 +88,40 @@ const AppCredentialsNewRoute = AppCredentialsNewRouteImport.update({
   path: '/credentials/new',
   getParentRoute: () => AppRoute,
 } as any)
-const AppCredentialsIdRoute = AppCredentialsIdRouteImport.update({
-  id: '/credentials/$id',
-  path: '/credentials/$id',
+const AppDomainPlansPlanIdRoute = AppDomainPlansPlanIdRouteImport.update({
+  id: '/domain-plans/$planId',
+  path: '/domain-plans/$planId',
   getParentRoute: () => AppRoute,
+} as any)
+const AppDomainRunsRunIdRoute = AppDomainRunsRunIdRouteImport.update({
+  id: '/domain-runs/$runId',
+  path: '/domain-runs/$runId',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppDomainsIndexRoute = AppDomainsIndexRouteImport.update({
+  id: '/domains/',
+  path: '/domains/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppDomainsNewRoute = AppDomainsNewRouteImport.update({
+  id: '/domains/new',
+  path: '/domains/new',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppRunsRunIdRoute = AppRunsRunIdRouteImport.update({
+  id: '/runs/$runId',
+  path: '/runs/$runId',
+  getParentRoute: () => AppRoute,
+} as any)
+const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+  id: '/api/auth/$',
+  path: '/api/auth/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiRpcSplatRoute = ApiRpcSplatRouteImport.update({
+  id: '/api/rpc/$',
+  path: '/api/rpc/$',
+  getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -263,18 +263,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/signup': {
-      id: '/signup'
-      path: '/signup'
-      fullPath: '/signup'
-      preLoaderRoute: typeof SignupRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app': {
@@ -284,32 +277,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/mcp': {
-      id: '/api/mcp'
-      path: '/api/mcp'
-      fullPath: '/api/mcp'
-      preLoaderRoute: typeof ApiMcpRouteImport
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/health': {
-      id: '/api/health'
-      path: '/api/health'
-      fullPath: '/api/health'
-      preLoaderRoute: typeof ApiHealthRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_app/mcp': {
-      id: '/_app/mcp'
-      path: '/mcp'
-      fullPath: '/mcp'
-      preLoaderRoute: typeof AppMcpRouteImport
+    '/_app/audit': {
+      id: '/_app/audit'
+      path: '/audit'
+      fullPath: '/audit'
+      preLoaderRoute: typeof AppAuditRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/dashboard': {
@@ -319,19 +305,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDashboardRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/audit': {
-      id: '/_app/audit'
-      path: '/audit'
-      fullPath: '/audit'
-      preLoaderRoute: typeof AppAuditRouteImport
+    '/_app/mcp': {
+      id: '/_app/mcp'
+      path: '/mcp'
+      fullPath: '/mcp'
+      preLoaderRoute: typeof AppMcpRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/domains/': {
-      id: '/_app/domains/'
-      path: '/domains'
-      fullPath: '/domains/'
-      preLoaderRoute: typeof AppDomainsIndexRouteImport
-      parentRoute: typeof AppRoute
+    '/api/health': {
+      id: '/api/health'
+      path: '/api/health'
+      fullPath: '/api/health'
+      preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp': {
+      id: '/api/mcp'
+      path: '/api/mcp'
+      fullPath: '/api/mcp'
+      preLoaderRoute: typeof ApiMcpRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_app/credentials/': {
       id: '/_app/credentials/'
@@ -340,46 +333,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppCredentialsIndexRouteImport
       parentRoute: typeof AppRoute
     }
-    '/api/rpc/$': {
-      id: '/api/rpc/$'
-      path: '/api/rpc/$'
-      fullPath: '/api/rpc/$'
-      preLoaderRoute: typeof ApiRpcSplatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/auth/$': {
-      id: '/api/auth/$'
-      path: '/api/auth/$'
-      fullPath: '/api/auth/$'
-      preLoaderRoute: typeof ApiAuthSplatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_app/runs/$runId': {
-      id: '/_app/runs/$runId'
-      path: '/runs/$runId'
-      fullPath: '/runs/$runId'
-      preLoaderRoute: typeof AppRunsRunIdRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/domains/new': {
-      id: '/_app/domains/new'
-      path: '/domains/new'
-      fullPath: '/domains/new'
-      preLoaderRoute: typeof AppDomainsNewRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/domain-runs/$runId': {
-      id: '/_app/domain-runs/$runId'
-      path: '/domain-runs/$runId'
-      fullPath: '/domain-runs/$runId'
-      preLoaderRoute: typeof AppDomainRunsRunIdRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/domain-plans/$planId': {
-      id: '/_app/domain-plans/$planId'
-      path: '/domain-plans/$planId'
-      fullPath: '/domain-plans/$planId'
-      preLoaderRoute: typeof AppDomainPlansPlanIdRouteImport
+    '/_app/credentials/$id': {
+      id: '/_app/credentials/$id'
+      path: '/credentials/$id'
+      fullPath: '/credentials/$id'
+      preLoaderRoute: typeof AppCredentialsIdRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/credentials/new': {
@@ -389,12 +347,54 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppCredentialsNewRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/credentials/$id': {
-      id: '/_app/credentials/$id'
-      path: '/credentials/$id'
-      fullPath: '/credentials/$id'
-      preLoaderRoute: typeof AppCredentialsIdRouteImport
+    '/_app/domain-plans/$planId': {
+      id: '/_app/domain-plans/$planId'
+      path: '/domain-plans/$planId'
+      fullPath: '/domain-plans/$planId'
+      preLoaderRoute: typeof AppDomainPlansPlanIdRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/_app/domain-runs/$runId': {
+      id: '/_app/domain-runs/$runId'
+      path: '/domain-runs/$runId'
+      fullPath: '/domain-runs/$runId'
+      preLoaderRoute: typeof AppDomainRunsRunIdRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/domains/': {
+      id: '/_app/domains/'
+      path: '/domains'
+      fullPath: '/domains/'
+      preLoaderRoute: typeof AppDomainsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/domains/new': {
+      id: '/_app/domains/new'
+      path: '/domains/new'
+      fullPath: '/domains/new'
+      preLoaderRoute: typeof AppDomainsNewRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/runs/$runId': {
+      id: '/_app/runs/$runId'
+      path: '/runs/$runId'
+      fullPath: '/runs/$runId'
+      preLoaderRoute: typeof AppRunsRunIdRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
+      preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/rpc/$': {
+      id: '/api/rpc/$'
+      path: '/api/rpc/$'
+      fullPath: '/api/rpc/$'
+      preLoaderRoute: typeof ApiRpcSplatRouteImport
+      parentRoute: typeof rootRouteImport
     }
   }
 }
