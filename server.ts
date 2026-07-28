@@ -5,6 +5,8 @@
 import { existsSync, statSync } from "node:fs";
 import { extname, join, normalize, resolve } from "node:path";
 import app from "./dist/server/server.js";
+import { waitForDatabaseWake } from "./src/server/db/wake-gate";
+import { isTransientDatabaseWakeError } from "./src/server/db/wake-retry";
 
 const PORT = Number(process.env.PORT ?? 3000);
 const CLIENT_DIR = resolve("./dist/client");
@@ -63,6 +65,26 @@ Bun.serve({
               : SHORT_CACHE_CONTROL,
         };
         return new Response(Bun.file(filePath), { headers });
+      }
+    }
+
+    // Keep the liveness endpoint independent from Postgres. All real app and
+    // API traffic waits here before auth or route code can touch a waking DB.
+    if (url.pathname !== "/api/health") {
+      try {
+        await waitForDatabaseWake();
+      } catch (err) {
+        if (isTransientDatabaseWakeError(err)) {
+          return new Response("database is waking; retry shortly", {
+            status: 503,
+            headers: {
+              "cache-control": "no-store",
+              "content-type": "text/plain; charset=utf-8",
+              "retry-after": "2",
+            },
+          });
+        }
+        throw err;
       }
     }
 

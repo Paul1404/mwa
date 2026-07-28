@@ -5,16 +5,30 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
+import { retryDatabaseWake } from "./wake-retry";
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) {
   throw new Error("DATABASE_URL is required to run migrations");
 }
 
-const sql = postgres(databaseUrl, { max: 1, prepare: false });
+const sql = postgres(databaseUrl, { max: 1, prepare: false, connect_timeout: 10 });
 const db = drizzle(sql);
 
 try {
+  let reportedWake = false;
+  await retryDatabaseWake(
+    async () => {
+      await sql`select 1`;
+    },
+    {
+      onRetry: () => {
+        if (reportedWake) return;
+        reportedWake = true;
+        console.info("[migrate] waiting for serverless Postgres to wake");
+      },
+    },
+  );
   await migrate(db, { migrationsFolder: "./drizzle" });
   console.log("[migrate] applied successfully");
 } catch (err) {

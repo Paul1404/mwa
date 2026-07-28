@@ -9,6 +9,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { CANARY_KEY, CANARY_PLAINTEXT, decrypt, encrypt } from "./crypto.server";
 import * as schema from "./db/schema";
+import { retryDatabaseWake } from "./db/wake-retry";
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) {
@@ -21,7 +22,7 @@ if (!process.env.ENCRYPTION_KEY) {
   process.exit(1);
 }
 
-const sql = postgres(databaseUrl, { max: 1, prepare: false });
+const sql = postgres(databaseUrl, { max: 1, prepare: false, connect_timeout: 10 });
 const db = drizzle(sql, { schema });
 
 type CanaryState = "ok" | "rotated" | "missing";
@@ -64,6 +65,19 @@ async function countUnreadableCredentials(): Promise<{ total: number; unreadable
 }
 
 try {
+  let reportedWake = false;
+  await retryDatabaseWake(
+    async () => {
+      await sql`select 1`;
+    },
+    {
+      onRetry: () => {
+        if (reportedWake) return;
+        reportedWake = true;
+        console.info("[boot-probe] waiting for serverless Postgres to wake");
+      },
+    },
+  );
   const canary = await checkCanary();
   const { total, unreadable } = await countUnreadableCredentials();
 

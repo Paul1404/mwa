@@ -73,6 +73,15 @@ Open http://localhost:3000. The first time you visit, register an account
 5. Migrations run on every boot from inside the container, so deploys do
    not need a separate `preDeployCommand`.
 
+The runtime is compatible with Railway Serverless on both the app and Postgres services. Startup
+migrations, the encryption probe, and dynamic requests wait through transient database wake-up
+failures without logging them as application errors. Database pools close idle connections so they
+do not keep either service awake unnecessarily.
+
+Railway notes that the first internet request to a sleeping app service can still receive a `502`
+from its edge while the container starts. That happens before MWA code is running, so external
+callers and uptime checks should retry `502`, `503`, and `504` responses with a short backoff.
+
 ## Required environment variables
 
 See `.env.example` for the full list. The ones that matter:

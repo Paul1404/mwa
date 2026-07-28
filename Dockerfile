@@ -39,6 +39,8 @@ COPY --from=builder   /app/package.json ./package.json
 COPY --from=builder   /app/src/server/db/migrate.ts  ./src/server/db/migrate.ts
 COPY --from=builder   /app/src/server/db/schema.ts   ./src/server/db/schema.ts
 COPY --from=builder   /app/src/server/db/index.ts    ./src/server/db/index.ts
+COPY --from=builder   /app/src/server/db/wake-gate.ts ./src/server/db/wake-gate.ts
+COPY --from=builder   /app/src/server/db/wake-retry.ts ./src/server/db/wake-retry.ts
 COPY --from=builder   /app/src/server/crypto.server.ts ./src/server/crypto.server.ts
 COPY --from=builder   /app/src/server/boot-probe.ts  ./src/server/boot-probe.ts
 
