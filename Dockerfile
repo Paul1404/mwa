@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
 # ---------- builder ----------
-FROM oven/bun:1.3.14-alpine AS builder
+FROM oven/bun:1.4.2-alpine AS builder
 WORKDIR /app
 
 # Native deps need a toolchain for `bun install` (ssh2, cpu-features, sharp).
@@ -18,14 +18,14 @@ RUN bun run build
 # runner stage (kysely, better-call, etc.), so we install once into a clean
 # stage and copy node_modules over. Production set excludes drizzle-kit and
 # friends since migrations run via a runtime-only entry.
-FROM oven/bun:1.3.14-alpine AS prod-deps
+FROM oven/bun:1.4.2-alpine AS prod-deps
 WORKDIR /app
 RUN apk add --no-cache python3 make g++ libc6-compat
 COPY package.json bun.lock* bun.lockb* ./
 RUN bun install --frozen-lockfile --production
 
 # ---------- runner ----------
-FROM oven/bun:1.3.14-alpine AS runner
+FROM oven/bun:1.4.2-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
